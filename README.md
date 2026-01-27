@@ -2,6 +2,8 @@
 
 Record browser actions with on-demand screenshots and element highlighting. Generates rerunnable scripts and markdown documentation.
 
+![Recorder UI](readme-assets/recorder-ui.png)
+
 ## Install
 
 ```bash
@@ -41,12 +43,20 @@ node recorder.js https://example.com ./my-docs 1280x720 "Getting Started Guide"
 
 A shortcuts legend is displayed in the browser during recording and automatically hidden when taking screenshots.
 
-## Notes
+## Highlighting Elements
+
+Use `Ctrl+Click` on any element to highlight it with an orange overlay. The highlight persists across screenshots until cleared with `Ctrl+Shift+X`.
+
+![Highlight Example](readme-assets/highlight-example.png)
+
+## Adding Notes
 
 When using `Ctrl+Shift+K`, a dialog appears with a markdown toolbar:
 - Formatting buttons: **B** (Bold), *I* (Italic), H1, H2, • (Bullet), 1. (Numbered), `<>` (Code), 🔗 (Link)
 - `Ctrl+Enter` to save, `Escape` to cancel
 - Notes are included in `screenshots.md` and printed during replay
+
+![Note Dialog](readme-assets/note-dialog.png)
 
 ## Output
 
@@ -76,6 +86,25 @@ node doc-output/recorded-script.js
 ```
 
 This re-executes all actions, regenerates screenshots and `screenshots.md`, and prints notes to the console.
+
+## Video Generation
+
+Generate videos from recorded sessions using `generate-recording.js`:
+
+```bash
+node generate-recording.js ./doc-output/actions.json
+node generate-recording.js ./doc-output/actions.json -f gif -o ./my-recording
+```
+
+Options:
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-o, --output <dir>` | Output directory | ./recording-output |
+| `-f, --format <fmt>` | Format: mp4, gif, webm | mp4 |
+| `--fps <n>` | Frame rate | 2 |
+| `--note-position <pos>` | Note overlay: top, bottom | bottom |
+
+Requires [ffmpeg](https://ffmpeg.org/) for video encoding.
 
 ## How It Works
 

@@ -22,9 +22,27 @@ node recorder.js https://example.com ./my-docs 1280x720 "Getting Started Guide"
 
 # Replay a recorded session
 node doc-output/recorded-script.js
+
+# Generate video from recorded actions (requires ffmpeg)
+node generate-recording.js <actions.json> [options]
+
+# Video examples
+node generate-recording.js ./doc-output/actions.json
+node generate-recording.js ./doc-output/actions.json -f gif -o ./my-recording
+node generate-recording.js ./doc-output/actions.json --fps 4 --format webm
 ```
 
 Default viewport is 1280x720. Title adds YAML front matter to generated markdown.
+
+### Video Generation Options
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-o, --output <dir>` | Output directory | ./recording-output |
+| `-f, --format <fmt>` | Format: mp4, gif, webm | mp4 |
+| `--fps <n>` | Frame rate | 2 |
+| `--width <n>` | Video width | 1280 |
+| `--height <n>` | Video height | 720 |
+| `--note-position <pos>` | Note overlay: top, bottom | bottom |
 
 ## Shortcuts
 
@@ -68,4 +86,15 @@ Recordings output to `doc-output/` (or custom dir):
 - `screenshots/` - Captured PNG screenshots
 - `screenshots.md` - Markdown with front matter and embedded images
 - `actions.json` - Action log with title, viewport, and actions array
+
+## Video Generation
+
+`generate-recording.js` replays `actions.json` in headless mode, capturing frames with highlight overlays, then encodes to video via ffmpeg.
+
+- Replays goto, click, fill, screenshot actions
+- Applies animated highlight overlays to targeted elements
+- Renders note annotations as styled overlays (markdown supported)
+- Filters out internal recorder UI actions automatically
+- Supports Playwright text selectors (`:text("...")`)
+- Falls back to keeping raw frames if ffmpeg unavailable
 
