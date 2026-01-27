@@ -1,6 +1,6 @@
 # Playwright Documentation Recorder
 
-Record browser actions with on-demand screenshots and element highlighting. Generates rerunnable scripts.
+Record browser actions with on-demand screenshots and element highlighting. Generates rerunnable scripts and markdown documentation.
 
 ## Install
 
@@ -11,41 +11,77 @@ npm install
 ## Usage
 
 ```bash
-node recorder.js <url> [output-dir]
+node recorder.js <url> [output-dir] [viewport] [title]
 ```
 
-Example:
+Examples:
 ```bash
 node recorder.js https://example.com ./my-docs
+node recorder.js https://example.com ./my-docs 1920x1080
+node recorder.js https://example.com ./my-docs 1280x720 "Getting Started Guide"
 ```
 
-## Keyboard Shortcuts
+- Default viewport: 1280x720
+- Title adds YAML front matter to generated markdown
 
+## Shortcuts
+
+### Mouse
+| Action | Result |
+|--------|--------|
+| `Ctrl+Click` | Highlight clicked element |
+
+### Keyboard
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+H` | Toggle highlight on hovered element |
 | `Ctrl+Shift+S` | Take screenshot |
-| `Ctrl+Shift+C` | Take screenshot with current highlight |
-| `Ctrl+C` | Stop recording and save script |
+| `Ctrl+Shift+K` | Screenshot with note (opens markdown editor) |
+| `Ctrl+Shift+X` | Clear highlight |
+| `Ctrl+C` | Stop recording and save |
+
+A shortcuts legend is displayed in the browser during recording and automatically hidden when taking screenshots.
+
+## Notes
+
+When using `Ctrl+Shift+K`, a dialog appears with a markdown toolbar:
+- Formatting buttons: **B** (Bold), *I* (Italic), H1, H2, • (Bullet), 1. (Numbered), `<>` (Code), 🔗 (Link)
+- `Ctrl+Enter` to save, `Escape` to cancel
+- Notes are included in `screenshots.md` and printed during replay
 
 ## Output
 
 After recording, you get:
 - `recorded-script.js` - Rerunnable Playwright script
 - `screenshots/` - All captured screenshots
-- `actions.json` - Raw action log
+- `screenshots.md` - Markdown documentation with optional front matter and embedded screenshots
+- `actions.json` - Raw action log (includes title, viewport, and actions)
 
-## Re-run
+Example `screenshots.md` with title:
+```markdown
+---
+title: "Getting Started Guide"
+---
+
+## Step 1: Click Login
+
+![screenshot-001.png](screenshots/screenshot-001.png)
+
+---
+```
+
+## Replay
 
 ```bash
 node doc-output/recorded-script.js
 ```
 
-This re-executes all actions and regenerates screenshots (with highlights).
+This re-executes all actions, regenerates screenshots and `screenshots.md`, and prints notes to the console.
 
 ## How It Works
 
-1. Records clicks, form inputs, and navigation automatically
-2. Use `Ctrl+Shift+H` to highlight any element you hover over
-3. Use `Ctrl+Shift+C` to capture screenshot with the highlight visible
-4. Press `Ctrl+C` when done - generates a script that replays everything
+1. Opens a browser with the specified viewport
+2. Records clicks, form inputs, and navigation automatically
+3. Use `Ctrl+Click` to highlight any element
+4. Use `Ctrl+Shift+S` to capture screenshots
+5. Use `Ctrl+Shift+K` to add markdown notes with screenshots
+6. Press `Ctrl+C` when done - generates replay script and documentation

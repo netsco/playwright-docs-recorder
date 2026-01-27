@@ -6,6 +6,8 @@ class DocRecorder {
   constructor(options = {}) {
     this.outputDir = options.outputDir || './doc-output';
     this.scriptName = options.scriptName || 'recorded-script';
+    this.viewport = options.viewport || { width: 1280, height: 720 };
+    this.title = options.title || null;
     this.actions = [];
     this.screenshots = [];
     this.screenshotCounter = 0;
@@ -17,7 +19,9 @@ class DocRecorder {
     fs.mkdirSync(path.join(this.outputDir, 'screenshots'), { recursive: true });
 
     const browser = await chromium.launch({ headless: false });
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      viewport: this.viewport
+    });
     const page = await context.newPage();
     
     this.browser = browser;
@@ -29,8 +33,8 @@ class DocRecorder {
       console.log(`📝 ${action.type}: ${action.selector || action.url || ''}`);
     });
 
-    await page.exposeFunction('__takeScreenshot', async (selector) => {
-      await this.takeScreenshot(selector);
+    await page.exposeFunction('__takeScreenshot', async (selector, note) => {
+      await this.takeScreenshot(selector, note);
     });
 
     await page.exposeFunction('__notifyHighlight', (selector) => {
@@ -75,6 +79,174 @@ class DocRecorder {
         display: none; transition: all 0.1s;
       `;
       document.body.appendChild(overlay);
+
+      // Shortcuts legend
+      const legend = document.createElement('div');
+      legend.id = '__shortcuts-legend';
+      legend.innerHTML = `
+        <div style="font-weight:bold;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:4px;">Recorder</div>
+        <div><kbd>Ctrl+Click</kbd> Highlight</div>
+        <div><kbd>Ctrl+Shift+S</kbd> Screenshot</div>
+        <div><kbd>Ctrl+Shift+K</kbd> + note</div>
+        <div><kbd>Ctrl+Shift+X</kbd> Clear</div>
+      `;
+      legend.style.cssText = `
+        position: fixed; bottom: 20px; right: 20px; z-index: 999998;
+        background: rgba(0,0,0,0.85); color: #fff; padding: 12px 16px;
+        border-radius: 8px; font-family: system-ui, sans-serif; font-size: 12px;
+        line-height: 1.8; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        white-space: nowrap; min-width: 180px;
+      `;
+      legend.querySelectorAll('kbd').forEach(kbd => {
+        kbd.style.cssText = `
+          background: rgba(255,255,255,0.15); padding: 2px 5px; border-radius: 3px;
+          font-family: inherit; margin-right: 6px;
+        `;
+      });
+      document.body.appendChild(legend);
+
+      // Custom prompt dialog (native prompt doesn't work in Playwright)
+      const promptDialog = document.createElement('div');
+      promptDialog.id = '__prompt-dialog';
+      const toolbarBtnStyle = 'padding:4px 8px;margin-right:4px;cursor:pointer;border:1px solid #ccc;border-radius:3px;background:#f5f5f5;font-size:12px;font-family:inherit;';
+      promptDialog.innerHTML = `
+        <div style="margin-bottom:12px;font-weight:bold;">Enter note for screenshot:</div>
+        <div id="__md-toolbar" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:2px;">
+          <button type="button" data-md="bold" style="${toolbarBtnStyle}font-weight:bold;">B</button>
+          <button type="button" data-md="italic" style="${toolbarBtnStyle}font-style:italic;">I</button>
+          <button type="button" data-md="h1" style="${toolbarBtnStyle}">H1</button>
+          <button type="button" data-md="h2" style="${toolbarBtnStyle}">H2</button>
+          <button type="button" data-md="ul" style="${toolbarBtnStyle}">•</button>
+          <button type="button" data-md="ol" style="${toolbarBtnStyle}">1.</button>
+          <button type="button" data-md="code" style="${toolbarBtnStyle}font-family:monospace;">&lt;&gt;</button>
+          <button type="button" data-md="link" style="${toolbarBtnStyle}">🔗</button>
+        </div>
+        <textarea id="__prompt-input" placeholder="Enter your note..." style="width:100%;height:150px;padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;box-sizing:border-box;font-family:system-ui,sans-serif;resize:vertical;"></textarea>
+        <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:#666;">Ctrl+Enter to save</span>
+          <div>
+            <button id="__prompt-cancel" style="padding:8px 20px;margin-right:8px;cursor:pointer;border-radius:4px;border:1px solid #ccc;">Cancel</button>
+            <button id="__prompt-ok" style="padding:8px 20px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;">OK</button>
+          </div>
+        </div>
+      `;
+      promptDialog.style.cssText = `
+        display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: #fff; padding: 24px; border-radius: 8px; z-index: 1000000;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
+        min-width: 450px;
+      `;
+      document.body.appendChild(promptDialog);
+
+      // Markdown toolbar helper
+      function insertMarkdown(type) {
+        const input = document.getElementById('__prompt-input');
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        const selected = text.substring(start, end);
+
+        let before = '', after = '', insert = '';
+
+        switch (type) {
+          case 'bold':
+            before = '**'; after = '**';
+            insert = selected || 'text';
+            break;
+          case 'italic':
+            before = '*'; after = '*';
+            insert = selected || 'text';
+            break;
+          case 'code':
+            before = '`'; after = '`';
+            insert = selected || 'code';
+            break;
+          case 'link':
+            before = '['; after = '](url)';
+            insert = selected || 'link text';
+            break;
+          case 'h1':
+            before = '# '; after = '';
+            insert = selected || 'Heading';
+            break;
+          case 'h2':
+            before = '## '; after = '';
+            insert = selected || 'Heading';
+            break;
+          case 'ul':
+            before = '- '; after = '';
+            insert = selected || 'item';
+            break;
+          case 'ol':
+            before = '1. '; after = '';
+            insert = selected || 'item';
+            break;
+        }
+
+        const newText = text.substring(0, start) + before + insert + after + text.substring(end);
+        input.value = newText;
+        input.focus();
+        input.selectionStart = start + before.length;
+        input.selectionEnd = start + before.length + insert.length;
+      }
+
+      // Wire up toolbar buttons
+      document.getElementById('__md-toolbar').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-md]');
+        if (btn) {
+          e.preventDefault();
+          insertMarkdown(btn.dataset.md);
+        }
+      });
+
+      // Backdrop
+      const backdrop = document.createElement('div');
+      backdrop.id = '__prompt-backdrop';
+      backdrop.style.cssText = `
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5); z-index: 999999;
+      `;
+      document.body.appendChild(backdrop);
+
+      function showPrompt() {
+        return new Promise((resolve) => {
+          const input = document.getElementById('__prompt-input');
+          const okBtn = document.getElementById('__prompt-ok');
+          const cancelBtn = document.getElementById('__prompt-cancel');
+
+          input.value = '';
+          promptDialog.style.display = 'block';
+          backdrop.style.display = 'block';
+          input.focus();
+
+          function cleanup() {
+            promptDialog.style.display = 'none';
+            backdrop.style.display = 'none';
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            input.removeEventListener('keydown', onKeydown);
+          }
+
+          function onOk() {
+            cleanup();
+            resolve(input.value || null);
+          }
+
+          function onCancel() {
+            cleanup();
+            resolve(null);
+          }
+
+          function onKeydown(e) {
+            if (e.key === 'Enter' && e.ctrlKey) onOk();
+            if (e.key === 'Escape') onCancel();
+          }
+
+          okBtn.addEventListener('click', onOk);
+          cancelBtn.addEventListener('click', onCancel);
+          input.addEventListener('keydown', onKeydown);
+        });
+      }
 
       let highlighted = null;
 
@@ -139,11 +311,13 @@ class DocRecorder {
       document.addEventListener('keydown', async (e) => {
         if (!e.ctrlKey || !e.shiftKey) return;
 
-        const key = e.key.toUpperCase();
-        
+        // Use e.code instead of e.key - Ctrl modifies e.key to control characters
+        const code = e.code;
+
         // H = Toggle highlight on hovered element
-        if (key === 'H') {
+        if (code === 'KeyH') {
           e.preventDefault();
+          e.stopPropagation();
           const hovered = Array.from(document.querySelectorAll(':hover')).pop();
           if (!hovered) return;
           
@@ -158,23 +332,58 @@ class DocRecorder {
           }
         }
         
-        // S = Screenshot (no highlight)
-        if (key === 'S') {
+        // S = Screenshot (includes any visible highlight)
+        if (code === 'KeyS') {
           e.preventDefault();
-          window.__takeScreenshot(null);
-        }
-        
-        // C = Screenshot with current highlight
-        if (key === 'C') {
-          e.preventDefault();
+          e.stopPropagation();
           const sel = highlighted ? getSelector(highlighted) : null;
-          window.__takeScreenshot(sel);
+          window.__takeScreenshot(sel, null);
+        }
+
+        // X = Clear highlight
+        if (code === 'KeyX') {
+          e.preventDefault();
+          e.stopPropagation();
+          highlighted = null;
+          hideOverlay();
+          window.__notifyHighlight(null);
+        }
+
+        // K = Screenshot with note
+        if (code === 'KeyK') {
+          e.preventDefault();
+          e.stopPropagation();
+          const sel = highlighted ? getSelector(highlighted) : null;
+          showPrompt().then(note => {
+            if (note !== null) {
+              window.__takeScreenshot(sel, note || null);
+            }
+          });
         }
       });
 
-      // Record clicks
+      // Record clicks and handle Ctrl+Click for highlight
       document.addEventListener('click', (e) => {
         const sel = getSelector(e.target);
+
+        // Ctrl+Click = toggle highlight
+        if (e.ctrlKey && sel && !sel.includes('__')) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          if (highlighted === e.target) {
+            highlighted = null;
+            hideOverlay();
+            window.__notifyHighlight(null);
+          } else {
+            highlighted = e.target;
+            showOverlay(e.target);
+            window.__notifyHighlight(sel);
+          }
+          return;
+        }
+
+        // Normal click = record action
         if (sel && !sel.includes('__highlight')) {
           window.__recordAction({ type: 'click', selector: sel });
         }
@@ -193,28 +402,45 @@ class DocRecorder {
     });
   }
 
-  async takeScreenshot(highlightSelector) {
+  async takeScreenshot(highlightSelector, note) {
     this.screenshotCounter++;
     const filename = `screenshot-${String(this.screenshotCounter).padStart(3, '0')}.png`;
     const filepath = path.join(this.outputDir, 'screenshots', filename);
-    
+
+    // Hide legend before screenshot
+    await this.page.evaluate(() => {
+      const legend = document.getElementById('__shortcuts-legend');
+      if (legend) legend.style.display = 'none';
+    });
+
     await this.page.screenshot({ path: filepath });
-    
-    this.screenshots.push({ filename, highlight: highlightSelector });
-    this.actions.push({ type: 'screenshot', filename, highlight: highlightSelector });
-    
-    console.log(`📸 ${filename}${highlightSelector ? ` [${highlightSelector}]` : ''}`);
+
+    // Show legend after screenshot
+    await this.page.evaluate(() => {
+      const legend = document.getElementById('__shortcuts-legend');
+      if (legend) legend.style.display = 'block';
+    });
+
+    this.screenshots.push({ filename, highlight: highlightSelector, note });
+    this.actions.push({ type: 'screenshot', filename, highlight: highlightSelector, note });
+
+    console.log(`📸 ${filename}${highlightSelector ? ` [${highlightSelector}]` : ''}${note ? ` - ${note}` : ''}`);
   }
 
   generateScript() {
+    const titleJson = this.title ? JSON.stringify(this.title) : 'null';
+    const screenshotsJson = JSON.stringify(this.screenshots);
+
     const lines = [
       '// Generated documentation script - re-run with: node recorded-script.js',
       "const { chromium } = require('playwright');",
+      "const fs = require('fs');",
       "const path = require('path');",
       '',
       '(async () => {',
       '  const browser = await chromium.launch({ headless: false });',
-      '  const page = await browser.newPage();',
+      `  const context = await browser.newContext({ viewport: { width: ${this.viewport.width}, height: ${this.viewport.height} } });`,
+      '  const page = await context.newPage();',
       '',
       '  async function highlight(page, selector) {',
       '    await page.evaluate((sel) => {',
@@ -237,6 +463,11 @@ class DocRecorder {
           lines.push(`  await page.locator('${action.selector}').fill('${action.value}');`);
           break;
         case 'screenshot':
+          if (action.note) {
+            const escapedNote = action.note.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+            lines.push(`  console.log('\\n📸 ${action.filename}');`);
+            lines.push(`  console.log(\`${escapedNote}\`);`);
+          }
           if (action.highlight) {
             lines.push(`  await highlight(page, '${action.highlight}');`);
           }
@@ -245,23 +476,64 @@ class DocRecorder {
       }
     }
 
+    // Add markdown generation
+    lines.push('');
+    lines.push('  // Generate markdown');
+    lines.push(`  const title = ${titleJson};`);
+    lines.push(`  const screenshots = ${screenshotsJson};`);
+    lines.push('  const mdLines = [];');
+    lines.push('  if (title) { mdLines.push("---", `title: "${title}"`, "---", ""); }');
+    lines.push('  for (const s of screenshots) {');
+    lines.push('    if (s.note) { mdLines.push(s.note, ""); }');
+    lines.push('    mdLines.push(`![${s.filename}](screenshots/${s.filename})`, "", "---", "");');
+    lines.push('  }');
+    lines.push('  fs.writeFileSync(path.join(__dirname, "screenshots.md"), mdLines.join("\\n"));');
+    lines.push('  console.log("\\n✅ Generated screenshots.md");');
+
     lines.push('', '  await browser.close();', '})();');
+    return lines.join('\n');
+  }
+
+  generateMarkdown() {
+    const lines = [];
+
+    if (this.title) {
+      lines.push('---', `title: "${this.title}"`, '---', '');
+    }
+
+    for (const screenshot of this.screenshots) {
+      if (screenshot.note) {
+        lines.push(screenshot.note, '');
+      }
+      lines.push(`![${screenshot.filename}](screenshots/${screenshot.filename})`, '');
+      lines.push('---', '');
+    }
+
     return lines.join('\n');
   }
 
   async stop() {
     console.log('\n🛑 Saving...');
-    
+
     const scriptPath = path.join(this.outputDir, this.scriptName + '.js');
     fs.writeFileSync(scriptPath, this.generateScript());
-    
+
+    fs.writeFileSync(
+      path.join(this.outputDir, 'screenshots.md'),
+      this.generateMarkdown()
+    );
+
     fs.writeFileSync(
       path.join(this.outputDir, 'actions.json'),
-      JSON.stringify(this.actions, null, 2)
+      JSON.stringify({
+        title: this.title,
+        viewport: this.viewport,
+        actions: this.actions
+      }, null, 2)
     );
-    
+
     await this.browser?.close();
-    
+
     console.log(`✅ Saved ${this.actions.length} actions, ${this.screenshots.length} screenshots`);
     console.log(`   Script: ${scriptPath}`);
     console.log(`   Re-run: node ${scriptPath}`);
@@ -270,14 +542,15 @@ class DocRecorder {
 
   printHelp() {
     console.log(`
-┌──────────────────────────────────────────┐
-│  📸 Documentation Recorder               │
-├──────────────────────────────────────────┤
-│  Ctrl+Shift+H  Highlight hovered element │
-│  Ctrl+Shift+S  Take screenshot           │
-│  Ctrl+Shift+C  Screenshot + highlight    │
-│  Ctrl+C        Stop & save script        │
-└──────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  📸 Documentation Recorder                  │
+├─────────────────────────────────────────────┤
+│  Ctrl+Click        Highlight element        │
+│  Ctrl+Shift+S      Take screenshot          │
+│  Ctrl+Shift+K      Screenshot + note        │
+│  Ctrl+Shift+X      Clear highlight          │
+│  Ctrl+C            Stop & save script       │
+└─────────────────────────────────────────────┘
 `);
   }
 }
@@ -285,11 +558,16 @@ class DocRecorder {
 // Run
 const url = process.argv[2];
 const outputDir = process.argv[3] || './doc-output';
+const viewportArg = process.argv[4] || '1280x720';
+const title = process.argv[5] || null;
 
 if (!url) {
-  console.log('Usage: node recorder.js <url> [output-dir]');
-  console.log('Example: node recorder.js https://example.com ./my-docs');
+  console.log('Usage: node recorder.js <url> [output-dir] [viewport] [title]');
+  console.log('Example: node recorder.js https://example.com ./my-docs 1920x1080 "Getting Started Guide"');
   process.exit(1);
 }
 
-new DocRecorder({ outputDir }).start(url);
+const [width, height] = viewportArg.split('x').map(Number);
+const viewport = { width: width || 1280, height: height || 720 };
+
+new DocRecorder({ outputDir, viewport, title }).start(url);
