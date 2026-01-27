@@ -1,0 +1,35 @@
+[
+  {
+    "type": "goto",
+    "url": "http://localhost/user/login"
+  },
+  {
+    "type": "goto",
+    "url": "http://localhost/user/login"
+  },
+  {
+    "type": "goto",
+    "url": "http://localhost/user/login"
+  },
+  {
+    "type": "goto",
+    "url": "http://localhost/user/login"
+  },
+  {
+    "type": "goto",
+    "url": "http://localhost/user/login"
+  },
+  {
+    "type": "click",
+    "selector": "a.phpdebugbar-minimize-btn"
+  },
+  {
+    "type": "click",
+    "selector": "a.phpdebugbar-close-btn"
+  },
+  {
+    "type": "screenshot",
+    "filename": "screenshot-001.png",
+    "highlight": null
+  }
+]
