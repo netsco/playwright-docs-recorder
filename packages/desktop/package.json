@@ -14,7 +14,11 @@
     "build:linux": "npm run css:build && electron-builder --linux",
     "pack": "npm run css:build && electron-builder --dir"
   },
-  "author": "",
+  "author": {
+    "name": "netsco",
+    "email": "netsco@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/netsco/playwright-docs-recorder",
   "license": "MIT",
   "dependencies": {
     "@doc-recorder/shared": "0.2.0",

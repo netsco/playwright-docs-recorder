@@ -48,14 +48,14 @@ jobs:
 
       - name: Install 7-Zip (Windows)
         if: matrix.platform == 'win'
-        run: choco install 7zip -y
+        run: |
+          choco install 7zip -y
+          echo "C:\Program Files\7-Zip" >> $env:GITHUB_PATH
 
       - name: Build Electron app (Windows)
         if: matrix.platform == 'win'
         working-directory: packages/desktop
         run: npx electron-builder --win --publish never
-        env:
-          USE_SYSTEM_7ZA: true
 
       - name: Install 7-Zip (macOS)
         if: matrix.platform == 'mac'
