@@ -51,7 +51,7 @@ function generateScript(recording) {
         // Standalone note - just log it
         if (action.note) {
           const escapedNote = action.note.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
-          lines.push(`  console.log('\\n📝 Note:');`);
+          lines.push('  console.log(\'\\n📝 Note:\');');
           lines.push(`  console.log(\`${escapedNote}\`);`);
         }
         break;

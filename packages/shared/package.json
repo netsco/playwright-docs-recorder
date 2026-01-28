@@ -1,6 +1,6 @@
 {
   "name": "@doc-recorder/shared",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Shared utilities for Documentation Recorder",
   "main": "index.js",
   "exports": {
@@ -9,5 +9,13 @@
     "./markdown-generator": "./markdown-generator.js"
   },
   "keywords": ["playwright", "documentation", "recorder"],
-  "license": "MIT"
+  "license": "MIT",
+  "peerDependencies": {
+    "playwright": "^1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  }
 }

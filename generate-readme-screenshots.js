@@ -1,6 +1,8 @@
+/* global document */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const { getLegendHTML, getLegendStyles, getKbdStyles } = require('./packages/shared');
 
 /**
  * Generates screenshots for the README showing the recorder UI
@@ -22,33 +24,26 @@ async function generateScreenshots() {
   // Wait for fonts to load
   await page.waitForTimeout(500);
 
+  // Get shared UI templates
+  const legendHTML = getLegendHTML();
+  const legendStyles = getLegendStyles();
+  const kbdStyles = getKbdStyles();
+
   // Inject the recorder UI elements
-  await page.evaluate(() => {
-    // 1. Shortcuts legend (same as recorder.js)
+  await page.evaluate(({ legendHTML, legendStyles, kbdStyles }) => {
+    // 1. Shortcuts legend (from shared template)
     const legend = document.createElement('div');
     legend.id = '__shortcuts-legend';
-    legend.innerHTML = `
-      <div style="font-weight:bold;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:4px;">Recorder</div>
-      <div><kbd>Ctrl+Click</kbd> Highlight</div>
-      <div><kbd>Ctrl+Shift+S</kbd> Screenshot</div>
-      <div><kbd>Ctrl+Shift+K</kbd> + note</div>
-      <div><kbd>Ctrl+Shift+X</kbd> Clear</div>
-    `;
-    legend.style.cssText = `
-      position: fixed; bottom: 20px; right: 20px; z-index: 999998;
-      background: rgba(0,0,0,0.85); color: #fff; padding: 12px 16px;
-      border-radius: 8px; font-family: system-ui, sans-serif; font-size: 12px;
-      line-height: 1.8; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      white-space: nowrap; min-width: 180px;
-    `;
+    legend.innerHTML = legendHTML;
+    legend.style.cssText = legendStyles;
+    // Position in bottom-right
+    legend.style.right = '20px';
+    legend.style.bottom = '20px';
     legend.querySelectorAll('kbd').forEach(kbd => {
-      kbd.style.cssText = `
-        background: rgba(255,255,255,0.15); padding: 2px 5px; border-radius: 3px;
-        font-family: inherit; margin-right: 6px;
-      `;
+      kbd.style.cssText = kbdStyles;
     });
     document.body.appendChild(legend);
-  });
+  }, { legendHTML, legendStyles, kbdStyles });
 
   // Screenshot 1: Recorder UI (shortcuts legend)
   console.log('1. Capturing recorder UI...');

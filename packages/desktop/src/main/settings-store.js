@@ -21,7 +21,10 @@ function initSettingsStore() {
         { name: 'Tablet (768x1024)', width: 768, height: 1024 }
       ],
       recentUrls: [],
-      windowBounds: { width: 1400, height: 900 }
+      windowBounds: { width: 1400, height: 900 },
+      separator: '---',
+      showLog: false,
+      showShortcuts: true
     }
   });
   return store;

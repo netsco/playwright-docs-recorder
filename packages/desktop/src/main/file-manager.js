@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
 const { generateScript } = require('../shared/script-generator');
 const { generateMarkdown } = require('../shared/markdown-generator');
+const { slugify } = require('@doc-recorder/shared');
 
 /**
  * Ensure a directory exists, creating it if necessary.
@@ -27,6 +27,9 @@ function saveRecording(outputDir, recording) {
   ensureDir(recordingDir);
   ensureDir(screenshotsDir);
 
+  // Compute markdown filename from title (fallback to screenshots.md)
+  const mdFilename = recording.title ? slugify(recording.title) + '.md' : 'screenshots.md';
+
   // Save actions.json
   const actionsPath = path.join(recordingDir, 'actions.json');
   fs.writeFileSync(actionsPath, JSON.stringify({
@@ -35,7 +38,8 @@ function saveRecording(outputDir, recording) {
     viewport: recording.viewport,
     startTime: recording.startTime,
     endTime: new Date().toISOString(),
-    actions: recording.actions
+    actions: recording.actions,
+    mdFilename
   }, null, 2));
 
   // Generate and save Playwright script
@@ -43,7 +47,7 @@ function saveRecording(outputDir, recording) {
   fs.writeFileSync(scriptPath, generateScript(recording));
 
   // Generate and save markdown
-  const markdownPath = path.join(recordingDir, 'screenshots.md');
+  const markdownPath = path.join(recordingDir, mdFilename);
   fs.writeFileSync(markdownPath, generateMarkdown(recording));
 
   return {
@@ -158,6 +162,77 @@ function loadRecording(outputDir, recordingId) {
   return null;
 }
 
+/**
+ * Load a recording's markdown file content.
+ *
+ * @param {string} outputDir - Base output directory
+ * @param {string} recordingId - Recording ID
+ * @returns {Object} - { success, content, filePath, title } or { success: false, error }
+ */
+function loadRecordingMarkdown(outputDir, recordingId) {
+  const recordingDir = path.join(outputDir, recordingId);
+  const actionsPath = path.join(recordingDir, 'actions.json');
+
+  // Try to get mdFilename and title from actions.json
+  let mdFilename = 'screenshots.md';
+  let title = 'Untitled';
+  if (fs.existsSync(actionsPath)) {
+    try {
+      const actions = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+      title = actions.title || 'Untitled';
+      mdFilename = actions.mdFilename || 'screenshots.md';
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  const markdownPath = path.join(recordingDir, mdFilename);
+
+  if (!fs.existsSync(markdownPath)) {
+    return { success: false, error: 'Markdown file not found' };
+  }
+
+  try {
+    const content = fs.readFileSync(markdownPath, 'utf8');
+    return { success: true, content, filePath: markdownPath, recordingDir, title, mdFilename };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Save content to a recording's markdown file.
+ *
+ * @param {string} outputDir - Base output directory
+ * @param {string} recordingId - Recording ID
+ * @param {string} content - Markdown content to save
+ * @returns {Object} - { success: true } or { success: false, error }
+ */
+function saveRecordingMarkdown(outputDir, recordingId, content) {
+  const recordingDir = path.join(outputDir, recordingId);
+  const actionsPath = path.join(recordingDir, 'actions.json');
+
+  // Get mdFilename from actions.json (fallback to screenshots.md)
+  let mdFilename = 'screenshots.md';
+  if (fs.existsSync(actionsPath)) {
+    try {
+      const actions = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+      mdFilename = actions.mdFilename || 'screenshots.md';
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  const markdownPath = path.join(recordingDir, mdFilename);
+
+  try {
+    fs.writeFileSync(markdownPath, content, 'utf8');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   ensureDir,
   saveRecording,
@@ -166,5 +241,7 @@ module.exports = {
   saveHistory,
   addToHistory,
   deleteRecording,
-  loadRecording
+  loadRecording,
+  loadRecordingMarkdown,
+  saveRecordingMarkdown
 };

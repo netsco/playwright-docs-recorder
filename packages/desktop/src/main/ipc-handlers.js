@@ -1,4 +1,4 @@
-const { ipcMain, BrowserWindow, dialog } = require('electron');
+const { ipcMain, dialog } = require('electron');
 const path = require('path');
 const { getSettingsStore, addRecentUrl } = require('./settings-store');
 const {
@@ -7,7 +7,9 @@ const {
   loadHistory,
   addToHistory,
   deleteRecording,
-  loadRecording
+  loadRecording,
+  loadRecordingMarkdown,
+  saveRecordingMarkdown
 } = require('./file-manager');
 
 // Current recording state
@@ -27,6 +29,7 @@ function registerIpcHandlers() {
       title: options.title || null,
       url: url,
       viewport: options.viewport || settings.get('viewport'),
+      recordActions: options.recordActions !== false, // default true
       actions: [],
       screenshots: [],
       screenshotCounter: 0,
@@ -35,8 +38,9 @@ function registerIpcHandlers() {
 
     addRecentUrl(url);
 
-    console.log(`Started recording: ${url}`);
-    return { success: true, id: currentRecording.id };
+    const mode = currentRecording.recordActions ? 'full recording' : 'screenshots-only';
+    console.log(`Started ${mode}: ${url}`);
+    return { success: true, id: currentRecording.id, recordActions: currentRecording.recordActions };
   });
 
   ipcMain.handle('stop-recording', async () => {
@@ -88,6 +92,13 @@ function registerIpcHandlers() {
 
   ipcMain.on('record-action', (event, action) => {
     if (!currentRecording) return;
+
+    // If recordActions is false, only record goto, screenshot, and note actions
+    if (!currentRecording.recordActions) {
+      if (!['goto', 'screenshot', 'note'].includes(action.type)) {
+        return; // Skip click/fill actions in screenshots-only mode
+      }
+    }
 
     currentRecording.actions.push(action);
     console.log(`Recorded: ${action.type} - ${action.selector || action.url || ''}`);
@@ -160,15 +171,33 @@ function registerIpcHandlers() {
       outputDir: settings.get('outputDir'),
       viewport: settings.get('viewport'),
       viewportPresets: settings.get('viewportPresets'),
-      recentUrls: settings.get('recentUrls')
+      recentUrls: settings.get('recentUrls'),
+      separator: settings.get('separator'),
+      showLog: settings.get('showLog'),
+      showShortcuts: settings.get('showShortcuts')
     };
   });
 
   ipcMain.handle('save-settings', (event, newSettings) => {
     const settings = getSettingsStore();
-    if (newSettings.outputDir) settings.set('outputDir', newSettings.outputDir);
-    if (newSettings.viewport) settings.set('viewport', newSettings.viewport);
+    if (newSettings.outputDir !== undefined) settings.set('outputDir', newSettings.outputDir);
+    if (newSettings.viewport !== undefined) settings.set('viewport', newSettings.viewport);
+    if (newSettings.separator !== undefined) settings.set('separator', newSettings.separator);
+    if (newSettings.showLog !== undefined) settings.set('showLog', newSettings.showLog);
+    if (newSettings.showShortcuts !== undefined) settings.set('showShortcuts', newSettings.showShortcuts);
     return { success: true };
+  });
+
+  // ===== Markdown Editor =====
+
+  ipcMain.handle('get-recording-markdown', (event, recordingId) => {
+    const settings = getSettingsStore();
+    return loadRecordingMarkdown(settings.get('outputDir'), recordingId);
+  });
+
+  ipcMain.handle('save-recording-markdown', (event, recordingId, content) => {
+    const settings = getSettingsStore();
+    return saveRecordingMarkdown(settings.get('outputDir'), recordingId, content);
   });
 
   ipcMain.handle('select-output-dir', async () => {
@@ -183,6 +212,52 @@ function registerIpcHandlers() {
       return { success: true, path: result.filePaths[0] };
     }
     return { success: false };
+  });
+
+  // ===== Refetch =====
+
+  ipcMain.handle('save-refetched-screenshot', async (event, { recordingId, filename, imageDataUrl }) => {
+    const settings = getSettingsStore();
+    const screenshotsDir = path.join(settings.get('outputDir'), recordingId, 'screenshots');
+
+    try {
+      // Convert data URL to buffer
+      const base64Data = imageDataUrl.replace(/^data:image\/png;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+
+      saveScreenshot(screenshotsDir, filename, imageBuffer);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to save refetched screenshot:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('regenerate-markdown', async (event, recordingId) => {
+    const settings = getSettingsStore();
+    const recordingDir = path.join(settings.get('outputDir'), recordingId);
+    const actionsPath = path.join(recordingDir, 'actions.json');
+
+    try {
+      const fs = require('fs');
+      const recording = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+      const { generateMarkdown } = require('@doc-recorder/shared');
+
+      const screenshots = recording.screenshots || recording.actions.filter(a => a.type === 'screenshot');
+      const markdown = generateMarkdown({
+        title: recording.title,
+        screenshots,
+        separator: recording.separator
+      });
+
+      const mdFilename = recording.mdFilename || 'screenshots.md';
+      fs.writeFileSync(path.join(recordingDir, mdFilename), markdown);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to regenerate markdown:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   // ===== Utility =====

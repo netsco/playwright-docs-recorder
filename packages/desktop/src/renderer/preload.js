@@ -28,6 +28,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteRecording: (id) => ipcRenderer.invoke('delete-recording', id),
   openRecordingFolder: (id) => ipcRenderer.invoke('open-recording-folder', id),
 
+  // Markdown Editor
+  getRecordingMarkdown: (id) => ipcRenderer.invoke('get-recording-markdown', id),
+  saveRecordingMarkdown: (id, content) => ipcRenderer.invoke('save-recording-markdown', id, content),
+
+  // Refetch
+  saveRefetchedScreenshot: (data) => ipcRenderer.invoke('save-refetched-screenshot', data),
+  regenerateMarkdown: (id) => ipcRenderer.invoke('regenerate-markdown', id),
+
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

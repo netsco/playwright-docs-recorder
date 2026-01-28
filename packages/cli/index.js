@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { generateScript, generateMarkdown, slugify } = require('@doc-recorder/shared');
+const { generateScript, generateMarkdown, slugify, getLegendHTML, getLegendStyles, getKbdStyles } = require('@doc-recorder/shared');
 
 class DocRecorder {
   constructor(options = {}) {
@@ -13,6 +13,7 @@ class DocRecorder {
     this.viewport = options.viewport || { width: 1280, height: 720 };
     this.title = options.title;
     this.separator = options.separator;
+    this.recordActions = options.recordActions !== false; // default true
     this.actions = [];
     this.screenshots = [];
     this.screenshotCounter = 0;
@@ -34,6 +35,10 @@ class DocRecorder {
 
     // Expose functions to page
     await page.exposeFunction('__recordAction', (action) => {
+      // In screenshots-only mode, skip click and fill actions
+      if (!this.recordActions && !['goto', 'screenshot', 'note'].includes(action.type)) {
+        return;
+      }
       this.actions.push(action);
       console.log(`📝 ${action.type}: ${action.selector || action.url || ''}`);
     });
@@ -87,7 +92,12 @@ class DocRecorder {
   }
 
   async injectPageScript() {
-    await this.page.evaluate(() => {
+    // Get shared UI templates
+    const legendHTML = getLegendHTML();
+    const legendStyles = getLegendStyles();
+    const kbdStyles = getKbdStyles();
+
+    await this.page.evaluate(({ legendHTML, legendStyles, kbdStyles }) => {
       // Skip if already injected
       if (window.__docRecorderInjected) return;
       window.__docRecorderInjected = true;
@@ -106,39 +116,13 @@ class DocRecorder {
       // Shortcuts legend
       const legend = document.createElement('div');
       legend.id = '__shortcuts-legend';
-      legend.innerHTML = `
-        <div id="__legend-header" style="display:flex;justify-content:space-between;align-items:center;cursor:move;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:4px;">
-          <span style="font-weight:bold;">Recorder</span>
-          <button id="__btn-minimize" style="background:rgba(255,255,255,0.15);border:none;border-radius:3px;padding:2px 6px;color:#fff;cursor:pointer;font-size:12px;line-height:1;">−</button>
-        </div>
-        <div id="__legend-content">
-          <div><kbd>Ctrl+Hover</kbd> Preview</div>
-          <div><kbd>Ctrl+Click</kbd> Lock highlight</div>
-          <div><kbd>Ctrl+Shift+S</kbd> Screenshot</div>
-          <div><kbd>Ctrl+Shift+K</kbd> + note</div>
-          <div><kbd>Ctrl+Shift+X</kbd> Clear</div>
-        </div>
-        <div id="__legend-buttons" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.3);padding-top:8px;display:flex;gap:6px;">
-          <button id="__btn-screenshot" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">📷</button>
-          <button id="__btn-note" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">📝 Note</button>
-          <button id="__btn-clear" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">✖ Clear</button>
-        </div>
-      `;
-      legend.style.cssText = `
-        position: fixed; z-index: 999998;
-        background: rgba(0,0,0,0.85); color: #fff; padding: 12px 16px;
-        border-radius: 8px; font-family: system-ui, sans-serif; font-size: 12px;
-        line-height: 1.8; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        white-space: nowrap; min-width: 180px; user-select: none;
-      `;
+      legend.innerHTML = legendHTML;
+      legend.style.cssText = legendStyles;
       // Position in bottom-right initially
       legend.style.right = '20px';
       legend.style.bottom = '20px';
       legend.querySelectorAll('kbd').forEach(kbd => {
-        kbd.style.cssText = `
-          background: rgba(255,255,255,0.15); padding: 2px 5px; border-radius: 3px;
-          font-family: inherit; margin-right: 6px;
-        `;
+        kbd.style.cssText = kbdStyles;
       });
       // Button hover effects
       legend.querySelectorAll('button').forEach(btn => {
@@ -575,7 +559,7 @@ class DocRecorder {
           });
         }
       }, true);
-    });
+    }, { legendHTML, legendStyles, kbdStyles });
   }
 
   async takeScreenshot(highlightSelector, note) {
@@ -683,7 +667,9 @@ function parseArgs() {
     title: null,
     separator: '---',
     noSeparator: false,
-    nonInteractive: false
+    nonInteractive: false,
+    screenshotsOnly: false,
+    refetch: false
   };
   const argv = process.argv.slice(2);
 
@@ -695,11 +681,14 @@ function parseArgs() {
     else if (arg === '-s' || arg === '--separator') args.separator = argv[++i];
     else if (arg === '-ns' || arg === '--no-separator') args.noSeparator = true;
     else if (arg === '-n' || arg === '--non-interactive') args.nonInteractive = true;
+    else if (arg === '-so' || arg === '--screenshots-only') args.screenshotsOnly = true;
+    else if (arg === '--refetch') args.refetch = true;
     else if (arg === '-h' || arg === '--help') {
       console.log(`
 📸 Documentation Recorder
 
 Usage: node recorder.js <url> [options]
+       node recorder.js --refetch <output-dir>
 
 Options:
   -o, --output <dir>       Output directory (default: ./doc-output)
@@ -708,13 +697,24 @@ Options:
   -s, --separator <sep>    Separator between screenshots (default: ---)
   -ns, --no-separator      Disable separator between screenshots
   -n, --non-interactive    Skip prompts, use defaults for optional args
+  -so, --screenshots-only  Only capture screenshots (skip click/fill recording)
+  --refetch                Refetch screenshots from existing recording
   -h, --help               Show this help message
+
+Recording modes:
+  Full recording (default): Records all actions (clicks, form inputs, navigation)
+  Screenshots-only (-so):   Only records screenshots and navigation
+                            Warning: Credentials in forms will NOT be stored
+
+Refetch mode:
+  Re-runs an existing recording to regenerate screenshots with updated content.
+  Uses the actions.json from a previous recording.
 
 Examples:
   node recorder.js https://example.com --title "Getting Started"
   node recorder.js https://example.com -t "My Guide" -o ./docs -v 1920x1080
-  node recorder.js https://example.com -t "Guide" --no-separator
-  node recorder.js https://example.com -t "Quick Doc" -n
+  node recorder.js https://example.com -t "Guide" --screenshots-only
+  node recorder.js --refetch ./doc-output
 `);
       process.exit(0);
     }
@@ -729,6 +729,41 @@ Examples:
 
 async function main() {
   const args = parseArgs();
+
+  // Handle refetch mode
+  if (args.refetch) {
+    const outputDir = args.url || args.output; // url is the first positional arg
+    if (!outputDir || outputDir === './doc-output') {
+      console.error('❌ Output directory is required for --refetch');
+      console.error('   Usage: node recorder.js --refetch <output-dir>');
+      process.exit(1);
+    }
+
+    console.log(`\n📸 Refetching screenshots from: ${outputDir}\n`);
+
+    const { refetchScreenshots } = require('@doc-recorder/shared');
+    const result = await refetchScreenshots(outputDir, {
+      headless: true,
+      onProgress: (action, index, total) => {
+        process.stdout.write(`\r   Progress: ${index}/${total} - ${action.type}`);
+      }
+    });
+
+    console.log(''); // newline after progress
+    if (result.success) {
+      console.log(`\n✅ Refetched ${result.screenshotCount} screenshots`);
+    } else {
+      console.error(`\n❌ Refetch failed: ${result.error}`);
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  // Show warning for screenshots-only mode
+  if (args.screenshotsOnly) {
+    console.log('\n⚠️  Screenshots-only mode: Clicks and form inputs will NOT be recorded.');
+    console.log('   Use this mode when you don\'t want to store credentials.\n');
+  }
 
   if (args.nonInteractive) {
     // Non-interactive mode: require URL and title
@@ -772,7 +807,8 @@ async function main() {
     outputDir: args.output,
     viewport,
     title: args.title,
-    separator: args.separator
+    separator: args.separator,
+    recordActions: !args.screenshotsOnly
   }).start(args.url);
 }
 

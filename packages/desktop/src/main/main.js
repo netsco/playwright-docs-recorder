@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./ipc-handlers');
 const { initSettingsStore, getSettingsStore } = require('./settings-store');

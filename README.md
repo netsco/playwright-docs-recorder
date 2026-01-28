@@ -2,7 +2,13 @@
 
 Record browser actions with on-demand screenshots and element highlighting. Generates rerunnable scripts and markdown documentation.
 
-![Recorder UI](readme-assets/recorder-ui.png)
+This is an npm workspaces monorepo with three packages:
+
+| Package | Description |
+|---------|-------------|
+| `@doc-recorder/cli` | Command-line recorder tool |
+| `@doc-recorder/desktop` | Electron desktop app with GUI |
+| `@doc-recorder/shared` | Shared utilities (script/markdown generation) |
 
 ## Install
 
@@ -10,21 +16,57 @@ Record browser actions with on-demand screenshots and element highlighting. Gene
 npm install
 ```
 
-## Usage
+## Desktop App
 
+![Desktop App](readme-assets/desktop-app.png)
+
+Launch the Electron desktop app for a graphical recording experience:
+
+```bash
+npm run desktop
+```
+
+Features:
+- Visual recording controls with start/stop buttons
+- URL history and recent recordings sidebar
+- Viewport presets (HD, Full HD, Mobile, Tablet, Custom)
+- Screenshots-only mode (skip recording clicks/form inputs)
+- Refetch screenshots from existing recordings
+- Draggable recorder panel (constrained to viewport)
+- Built-in markdown editor for recorded documentation
+- Slugified markdown filenames based on project title
+
+## CLI Usage
+
+```bash
+npm run record <url> [options]
+```
+
+Options:
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-o, --output <dir>` | Output directory | ./doc-output |
+| `-v, --viewport <size>` | Viewport (WIDTHxHEIGHT) | 1280x720 |
+| `-t, --title <title>` | Document title (adds YAML front matter) | none |
+| `-s, --separator <sep>` | Screenshot separator in markdown | `---` |
+| `--screenshots-only` | Only capture screenshots (skip click/fill recording) | false |
+| `--refetch <dir>` | Refetch screenshots from existing recording | - |
+
+Examples:
+```bash
+npm run record https://example.com
+npm run record https://example.com -o ./my-docs -v 1920x1080
+npm run record https://example.com -t "Getting Started Guide"
+npm run record https://example.com --screenshots-only
+npm run record -- --refetch ./doc-output
+```
+
+Alternative (legacy):
 ```bash
 node recorder.js <url> [output-dir] [viewport] [title]
 ```
 
-Examples:
-```bash
-node recorder.js https://example.com ./my-docs
-node recorder.js https://example.com ./my-docs 1920x1080
-node recorder.js https://example.com ./my-docs 1280x720 "Getting Started Guide"
-```
-
-- Default viewport: 1280x720
-- Title adds YAML front matter to generated markdown
+![Recorder UI](readme-assets/recorder-ui.png)
 
 ## Shortcuts
 
@@ -63,7 +105,7 @@ When using `Ctrl+Shift+K`, a dialog appears with a markdown toolbar:
 After recording, you get:
 - `recorded-script.js` - Rerunnable Playwright script
 - `screenshots/` - All captured screenshots
-- `screenshots.md` - Markdown documentation with optional front matter and embedded screenshots
+- `<title>.md` - Markdown documentation (filename is slugified title, e.g., "Getting Started" → `getting-started.md`)
 - `actions.json` - Raw action log (includes title, viewport, and actions)
 
 Example `screenshots.md` with title:
@@ -85,7 +127,31 @@ title: "Getting Started Guide"
 node doc-output/recorded-script.js
 ```
 
-This re-executes all actions, regenerates screenshots and `screenshots.md`, and prints notes to the console.
+This re-executes all actions, regenerates screenshots and markdown, and prints notes to the console.
+
+## Refetch Screenshots
+
+Regenerate screenshots from an existing recording without re-recording actions:
+
+```bash
+# CLI
+npm run record -- --refetch ./doc-output
+
+# Desktop
+# Click "Refetch" button on any recording in the history sidebar
+```
+
+This replays only `goto` and `screenshot` actions, useful for updating screenshots after website changes.
+
+## Screenshots-Only Mode
+
+Record screenshots without capturing clicks or form inputs. Useful when entering credentials:
+
+```bash
+npm run record https://example.com --screenshots-only
+```
+
+In desktop app, uncheck "Record actions" before starting. A warning reminds you that credentials would be stored in `actions.json` when recording is enabled.
 
 ## Video Generation
 
@@ -108,9 +174,41 @@ Requires [ffmpeg](https://ffmpeg.org/) for video encoding.
 
 ## How It Works
 
+### CLI
 1. Opens a browser with the specified viewport
 2. Records clicks, form inputs, and navigation automatically
 3. Use `Ctrl+Click` to highlight any element
 4. Use `Ctrl+Shift+S` to capture screenshots
 5. Use `Ctrl+Shift+K` to add markdown notes with screenshots
 6. Press `Ctrl+C` when done - generates replay script and documentation
+
+### Desktop App
+1. Click "+" in the sidebar to start a new recording
+2. Enter URL, title, and select viewport preset (or custom dimensions)
+3. Optionally disable "Record actions" for screenshots-only mode
+4. Click "Start Recording" and interact with the page
+5. Use keyboard shortcuts or the draggable recorder panel to capture screenshots
+6. Click "Stop" when done - recordings are saved to the sidebar
+7. Use "Refetch" to regenerate screenshots from existing recordings
+
+## Project Structure
+
+```
+packages/
+├── cli/           # Command-line recorder (@doc-recorder/cli)
+├── desktop/       # Electron app (@doc-recorder/desktop)
+└── shared/        # Shared utilities (@doc-recorder/shared)
+```
+
+### Development
+
+```bash
+# Run CLI
+npm run record <url>
+
+# Run desktop app (dev mode)
+npm run desktop
+
+# Build desktop app
+npm run desktop:build
+```

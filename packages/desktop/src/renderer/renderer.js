@@ -1,16 +1,12 @@
 // DOM Elements
-const sidebar = document.getElementById('sidebar');
 const historyList = document.getElementById('historyList');
 const webview = document.getElementById('webview');
 const urlInput = document.getElementById('urlInput');
-const recentUrlsDatalist = document.getElementById('recentUrls');
-const goBtn = document.getElementById('goBtn');
+const toolbar = document.getElementById('toolbar');
 const backBtn = document.getElementById('backBtn');
 const forwardBtn = document.getElementById('forwardBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const recordBtn = document.getElementById('recordBtn');
-const screenshotBtn = document.getElementById('screenshotBtn');
-const noteBtn = document.getElementById('noteBtn');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const statusText = document.getElementById('statusText');
 const recordingStatus = document.getElementById('recordingStatus');
@@ -19,6 +15,7 @@ const screenshotCount = document.getElementById('screenshotCount');
 const viewportInfo = document.getElementById('viewportInfo');
 
 // Panel buttons
+const panelStopBtn = document.getElementById('panelStopBtn');
 const panelScreenshotBtn = document.getElementById('panelScreenshotBtn');
 const panelNoteBtn = document.getElementById('panelNoteBtn');
 const panelClearBtn = document.getElementById('panelClearBtn');
@@ -31,37 +28,57 @@ const cancelNote = document.getElementById('cancelNote');
 const saveNote = document.getElementById('saveNote');
 const mdToolbar = document.querySelector('.md-toolbar');
 
-// New Project modal elements (keeping for compatibility)
-const newProjectModal = document.getElementById('newProjectModal');
-const closeNewProject = document.getElementById('closeNewProject');
-const cancelNewProject = document.getElementById('cancelNewProject');
-const startProject = document.getElementById('startProject');
-const projectUrl = document.getElementById('projectUrl');
-const projectTitle = document.getElementById('projectTitle');
-const projectOutputDir = document.getElementById('projectOutputDir');
-const browseProjectDir = document.getElementById('browseProjectDir');
-const projectViewportPreset = document.getElementById('projectViewportPreset');
-const projectViewportWidth = document.getElementById('projectViewportWidth');
-const projectViewportHeight = document.getElementById('projectViewportHeight');
-
 // Welcome panel elements
 const welcomePanel = document.getElementById('welcomePanel');
 const welcomeUrl = document.getElementById('welcomeUrl');
+const welcomeRecentUrls = document.getElementById('welcomeRecentUrls');
 const welcomeTitle = document.getElementById('welcomeTitle');
 const welcomeOutputDir = document.getElementById('welcomeOutputDir');
 const welcomeBrowseDir = document.getElementById('welcomeBrowseDir');
+const welcomeViewportPreset = document.getElementById('welcomeViewportPreset');
+const customViewportInputs = document.getElementById('customViewportInputs');
 const welcomeViewportWidth = document.getElementById('welcomeViewportWidth');
 const welcomeViewportHeight = document.getElementById('welcomeViewportHeight');
+const welcomeSeparator = document.getElementById('welcomeSeparator');
+const welcomeRecordActions = document.getElementById('welcomeRecordActions');
 const welcomeStartBtn = document.getElementById('welcomeStartBtn');
 
 // Shortcuts panel
 const shortcutsPanel = document.getElementById('shortcutsPanel');
+const shortcutsPanelHeader = document.getElementById('shortcutsPanelHeader');
 const closeShortcuts = document.getElementById('closeShortcuts');
+
+// New recording button
+const newRecordingBtn = document.getElementById('newRecordingBtn');
+
+// Editor panel elements
+const editorPanel = document.getElementById('editorPanel');
+const editorBackBtn = document.getElementById('editorBackBtn');
+const editorTitle = document.getElementById('editorTitle');
+const editorStatus = document.getElementById('editorStatus');
+const editorSaveBtn = document.getElementById('editorSaveBtn');
+const editorDiscardBtn = document.getElementById('editorDiscardBtn');
+const editorTextarea = document.getElementById('editorTextarea');
+const editorPreview = document.getElementById('editorPreview');
+const editorMdToolbar = document.querySelector('#editorPanel [data-editor-md]')?.parentElement;
+
+// Log panel elements
+const logPanel = document.getElementById('logPanel');
+const logContent = document.getElementById('logContent');
+const toggleLogBtn = document.getElementById('toggleLogBtn');
+const toggleShortcutsBtn = document.getElementById('toggleShortcutsBtn');
 
 // State
 let isRecording = false;
 let currentSettings = null;
 let pendingScreenshot = null;
+// eslint-disable-next-line no-unused-vars -- reserved for future use
+let _currentRecordingId = null;
+let activeHistoryId = null;
+let editorOriginalContent = '';
+// eslint-disable-next-line no-unused-vars -- reserved for future use
+let _editorFilePath = '';
+let editorRecordingDir = '';
 
 // ===== Initialization =====
 
@@ -85,7 +102,6 @@ async function init() {
     console.log('Settings loaded:', currentSettings);
 
     updateViewportInfo();
-    populateRecentUrls();
     populateViewportPresets();
     loadHistory();
 
@@ -110,6 +126,21 @@ function populateWelcomePanel() {
     welcomeOutputDir.value = currentSettings.outputDir || '';
     welcomeViewportWidth.value = currentSettings.viewport?.width || 1280;
     welcomeViewportHeight.value = currentSettings.viewport?.height || 720;
+    welcomeSeparator.value = currentSettings.separator || '---';
+
+    // Populate recent URLs datalist
+    populateWelcomeRecentUrls();
+  }
+}
+
+function populateWelcomeRecentUrls() {
+  welcomeRecentUrls.innerHTML = '';
+  if (currentSettings?.recentUrls) {
+    currentSettings.recentUrls.forEach(url => {
+      const option = document.createElement('option');
+      option.value = url;
+      welcomeRecentUrls.appendChild(option);
+    });
   }
 }
 
@@ -120,16 +151,7 @@ function updateViewportInfo() {
   }
 }
 
-function populateRecentUrls() {
-  recentUrlsDatalist.innerHTML = '';
-  if (currentSettings?.recentUrls) {
-    currentSettings.recentUrls.forEach(url => {
-      const option = document.createElement('option');
-      option.value = url;
-      recentUrlsDatalist.appendChild(option);
-    });
-  }
-}
+// populateRecentUrls now moved to populateWelcomeRecentUrls
 
 function populateViewportPresets() {
   // Settings modal removed - viewport is set in welcome panel
@@ -165,6 +187,11 @@ function renderHistory(history) {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/>
           </svg>
         </button>
+        <button class="p-1.5 rounded-md hover:bg-teal-500/20 text-slate-500 hover:text-teal-400 transition-colors" data-action="refetch" title="Refetch screenshots">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
         <button class="p-1.5 rounded-md hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors" data-action="delete" title="Delete">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -191,13 +218,7 @@ function navigateTo(url) {
   urlInput.value = url;
 }
 
-goBtn.addEventListener('click', () => navigateTo(urlInput.value));
-
-urlInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    navigateTo(urlInput.value);
-  }
-});
+// Navigation is now done via welcome panel only
 
 backBtn.addEventListener('click', () => {
   if (webview.canGoBack()) webview.goBack();
@@ -286,6 +307,79 @@ if (closeShortcuts) {
   });
 }
 
+// Shortcuts panel drag functionality
+if (shortcutsPanelHeader && shortcutsPanel) {
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+
+  shortcutsPanelHeader.addEventListener('mousedown', (e) => {
+    // Don't start drag if clicking on close button
+    if (e.target.closest('button')) return;
+
+    isDragging = true;
+    const rect = shortcutsPanel.getBoundingClientRect();
+    dragOffset.x = e.clientX - rect.left;
+    dragOffset.y = e.clientY - rect.top;
+
+    // Switch to absolute positioning
+    shortcutsPanel.style.position = 'absolute';
+    shortcutsPanel.style.left = rect.left + 'px';
+    shortcutsPanel.style.top = rect.top + 'px';
+    shortcutsPanel.style.right = 'auto';
+    shortcutsPanel.style.bottom = 'auto';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+
+    const container = shortcutsPanel.parentElement;
+    const containerRect = container.getBoundingClientRect();
+    const panelRect = shortcutsPanel.getBoundingClientRect();
+
+    let newX = e.clientX - dragOffset.x - containerRect.left;
+    let newY = e.clientY - dragOffset.y - containerRect.top;
+
+    // Constrain to container bounds
+    const maxX = containerRect.width - panelRect.width;
+    const maxY = containerRect.height - panelRect.height;
+    newX = Math.max(0, Math.min(maxX, newX));
+    newY = Math.max(0, Math.min(maxY, newY));
+
+    shortcutsPanel.style.left = newX + 'px';
+    shortcutsPanel.style.top = newY + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    isDragging = false;
+  });
+}
+
+// ===== New Recording Button =====
+
+if (newRecordingBtn) {
+  newRecordingBtn.addEventListener('click', () => {
+    // Show welcome panel
+    welcomePanel.style.display = '';
+    editorPanel.style.display = 'none';
+    toolbar.style.display = 'none';
+    webview.classList.add('hidden');
+
+    // Reset form
+    welcomeUrl.value = '';
+    welcomeTitle.value = '';
+
+    // Reset shortcuts panel position
+    shortcutsPanel.style.position = '';
+    shortcutsPanel.style.left = '';
+    shortcutsPanel.style.top = '';
+    shortcutsPanel.style.right = '';
+    shortcutsPanel.style.bottom = '';
+
+    // Focus URL input
+    welcomeUrl.focus();
+  });
+}
+
 // ===== Welcome Panel =====
 
 welcomeBrowseDir.addEventListener('click', async () => {
@@ -294,7 +388,21 @@ welcomeBrowseDir.addEventListener('click', async () => {
     welcomeOutputDir.value = result.path;
     // Also update settings
     await window.electronAPI.saveSettings({ outputDir: result.path });
-    currentSettings.outputDir = result.path;
+    if (currentSettings) currentSettings.outputDir = result.path;
+  }
+});
+
+// Viewport preset handler
+welcomeViewportPreset.addEventListener('change', () => {
+  const value = welcomeViewportPreset.value;
+  if (value === 'custom') {
+    customViewportInputs.style.display = 'flex';
+    welcomeViewportWidth.focus();
+  } else {
+    customViewportInputs.style.display = 'none';
+    const [width, height] = value.split('x').map(Number);
+    welcomeViewportWidth.value = width;
+    welcomeViewportHeight.value = height;
   }
 });
 
@@ -311,8 +419,18 @@ welcomeUrl.addEventListener('keydown', (e) => {
 
 async function startFromWelcomePanel() {
   const url = welcomeUrl.value.trim();
+  const title = welcomeTitle.value.trim();
+
+  // Validate required fields
   if (!url) {
     welcomeUrl.focus();
+    statusText.textContent = 'URL is required';
+    return;
+  }
+
+  if (!title) {
+    welcomeTitle.focus();
+    statusText.textContent = 'Project title is required';
     return;
   }
 
@@ -322,18 +440,32 @@ async function startFromWelcomePanel() {
     height: parseInt(welcomeViewportHeight.value) || 720
   };
 
+  // Get separator (empty string means no separator)
+  const separator = welcomeSeparator.value;
+
+  // Get record actions preference
+  const recordActions = welcomeRecordActions.checked;
+
   // Update settings if output dir changed
   if (welcomeOutputDir.value && welcomeOutputDir.value !== currentSettings.outputDir) {
     await window.electronAPI.saveSettings({ outputDir: welcomeOutputDir.value });
     currentSettings.outputDir = welcomeOutputDir.value;
   }
 
+  // Save separator setting
+  await window.electronAPI.saveSettings({ separator });
+  currentSettings.separator = separator;
+
   // Hide welcome panel and show webview
   welcomePanel.style.display = 'none';
   webview.classList.remove('hidden');
 
-  // Show record button in toolbar
-  recordBtn.style.display = 'flex';
+  // Show toolbar
+  toolbar.style.display = 'flex';
+
+  // Show toggle buttons in status bar
+  toggleLogBtn.style.display = 'block';
+  toggleShortcutsBtn.style.display = 'block';
 
   // Navigate to URL first
   navigateTo(url);
@@ -341,7 +473,7 @@ async function startFromWelcomePanel() {
   // Wait for page to load, then start recording
   webview.addEventListener('did-stop-loading', async function onLoad() {
     webview.removeEventListener('did-stop-loading', onLoad);
-    await startRecording(url, welcomeTitle.value, viewport);
+    await startRecording(url, title, viewport, separator, recordActions);
   }, { once: true });
 }
 
@@ -351,100 +483,50 @@ function showWelcomePanel() {
   welcomeTitle.value = '';
   populateWelcomePanel();
 
-  // Show welcome panel, hide webview
-  welcomePanel.style.display = 'flex';
+  // Show welcome panel, hide webview and editor
+  welcomePanel.style.display = '';
+  editorPanel.style.display = 'none';
   webview.classList.add('hidden');
   webview.src = 'about:blank';
 
-  // Hide record button
-  recordBtn.style.display = 'none';
+  // Hide toolbar and toggle buttons
+  toolbar.style.display = 'none';
+  toggleLogBtn.style.display = 'none';
+  toggleShortcutsBtn.style.display = 'none';
+  logPanel.style.display = 'none';
+
+  // Clear active history selection
+  activeHistoryId = null;
+  _currentRecordingId = null;
+  updateHistoryHighlight();
 
   // Focus URL input
   setTimeout(() => welcomeUrl.focus(), 100);
 }
 
-// ===== New Project Modal (legacy, keeping for compatibility) =====
 
-function showNewProjectModal() {
-  // Now we use the welcome panel instead
-  showWelcomePanel();
-}
-
-function hideNewProjectModal() {
-  if (newProjectModal) newProjectModal.style.display = 'none';
-}
-
-if (closeNewProject) closeNewProject.addEventListener('click', hideNewProjectModal);
-if (cancelNewProject) cancelNewProject.addEventListener('click', hideNewProjectModal);
-
-if (browseProjectDir) {
-  browseProjectDir.addEventListener('click', async () => {
-    const result = await window.electronAPI.selectOutputDir();
-    if (result.success) {
-      projectOutputDir.value = result.path;
-    }
-  });
-}
-
-if (projectViewportPreset) {
-  projectViewportPreset.addEventListener('change', (e) => {
-    if (e.target.value) {
-      const [width, height] = e.target.value.split('x').map(Number);
-      projectViewportWidth.value = width;
-      projectViewportHeight.value = height;
-    }
-  });
-}
-
-if (startProject) {
-  startProject.addEventListener('click', async () => {
-    const url = projectUrl.value.trim();
-    if (!url) {
-      projectUrl.focus();
-      return;
-    }
-
-    const viewport = {
-      width: parseInt(projectViewportWidth.value) || 1280,
-      height: parseInt(projectViewportHeight.value) || 720
-    };
-
-    if (projectOutputDir.value && projectOutputDir.value !== currentSettings.outputDir) {
-      await window.electronAPI.saveSettings({ outputDir: projectOutputDir.value });
-      currentSettings.outputDir = projectOutputDir.value;
-    }
-
-    hideNewProjectModal();
-    navigateTo(url);
-
-    webview.addEventListener('did-stop-loading', async function onLoad() {
-      webview.removeEventListener('did-stop-loading', onLoad);
-      await startRecording(url, projectTitle.value, viewport);
-    }, { once: true });
-  });
-}
-
-if (projectUrl) {
-  projectUrl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      startProject.click();
-    }
-  });
-}
-
-async function startRecording(url, title, viewport) {
+async function startRecording(url, title, viewport, separator, recordActions = true) {
   const result = await window.electronAPI.startRecording(url || webview.src, {
     title: title || null,
-    viewport: viewport || currentSettings.viewport
+    viewport: viewport || currentSettings.viewport,
+    separator: separator !== undefined ? separator : currentSettings.separator,
+    recordActions: recordActions
   });
 
   if (result.success) {
     isRecording = true;
+    _currentRecordingId = result.id;
+
+    // Hide new recording button during recording
+    if (newRecordingBtn) newRecordingBtn.style.display = 'none';
 
     // Ensure webview is visible and welcome panel is hidden
     welcomePanel.style.display = 'none';
+    editorPanel.style.display = 'none';
     webview.classList.remove('hidden');
-    recordBtn.style.display = 'flex';
+
+    // Show toolbar
+    toolbar.style.display = 'flex';
 
     // Update record button styling for active state
     recordBtn.classList.add('recording-active', 'bg-coral-500', 'hover:bg-coral-400', 'border-coral-500');
@@ -453,8 +535,6 @@ async function startRecording(url, title, viewport) {
     recordBtn.querySelector('.record-dot').classList.remove('bg-slate-500', 'group-hover:bg-coral-500');
     recordBtn.querySelector('.record-text').textContent = 'Stop';
 
-    screenshotBtn.disabled = false;
-    noteBtn.disabled = false;
     recordingStatus.style.display = 'flex';
     actionCount.textContent = '0';
     screenshotCount.textContent = '0';
@@ -466,11 +546,27 @@ async function startRecording(url, title, viewport) {
     if (screenshotSection) screenshotSection.style.display = 'block';
     if (screenshotPreviews) screenshotPreviews.innerHTML = '';
 
-    // Show shortcuts panel
-    if (shortcutsPanel) shortcutsPanel.classList.remove('hidden');
+    // Show shortcuts panel based on preference
+    if (shortcutsPanel && currentSettings.showShortcuts !== false) {
+      shortcutsPanel.classList.remove('hidden');
+    }
 
-    // Notify webview that recording started
-    webview.send('recording-started');
+    // Show log panel based on preference
+    if (currentSettings.showLog) {
+      logPanel.style.display = 'block';
+    }
+
+    // Clear log content
+    logContent.innerHTML = '';
+    addLogEntry(recordActions ? 'Recording started' : 'Screenshots-only mode started', 'info');
+    statusText.textContent = recordActions ? 'Recording...' : 'Screenshots-only mode...';
+
+    // Show toggle buttons
+    toggleLogBtn.style.display = 'block';
+    toggleShortcutsBtn.style.display = 'block';
+
+    // Notify webview that recording started (with recordActions preference)
+    webview.send('recording-started', { recordActions });
   }
 }
 
@@ -479,6 +575,9 @@ async function stopRecording() {
 
   isRecording = false;
 
+  // Show new recording button
+  if (newRecordingBtn) newRecordingBtn.style.display = '';
+
   // Reset record button styling
   recordBtn.classList.remove('recording-active', 'bg-coral-500', 'hover:bg-coral-400', 'border-coral-500');
   recordBtn.classList.add('bg-slate-800', 'hover:bg-slate-700', 'border-slate-700');
@@ -486,56 +585,52 @@ async function stopRecording() {
   recordBtn.querySelector('.record-dot').classList.add('bg-slate-500', 'group-hover:bg-coral-500');
   recordBtn.querySelector('.record-text').textContent = 'Record';
 
-  screenshotBtn.disabled = true;
-  noteBtn.disabled = true;
   recordingStatus.style.display = 'none';
 
-  // Hide shortcuts panel
+  // Hide shortcuts panel and log panel
   if (shortcutsPanel) shortcutsPanel.classList.add('hidden');
+  logPanel.style.display = 'none';
+
+  // Hide toolbar
+  toolbar.style.display = 'none';
 
   // Notify webview that recording stopped
   webview.send('recording-stopped');
 
   if (result.success) {
-    statusText.innerHTML = `Saved: ${result.recording.actionCount} actions, ${result.recording.screenshotCount} screenshots - <a href="#" id="openLastRecording">Open folder</a>`;
+    addLogEntry('Recording stopped', 'info');
 
-    // Add click handler for the link
-    document.getElementById('openLastRecording')?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await window.electronAPI.openRecordingFolder(result.recording.id);
-    });
+    statusText.textContent = `Saved: ${result.recording.actionCount} actions, ${result.recording.screenshotCount} screenshots`;
 
-    loadHistory();
+    await loadHistory();
 
-    // Show welcome panel again after a brief delay
-    setTimeout(() => {
-      showWelcomePanel();
-      statusText.textContent = 'Ready';
-    }, 2000);
+    // Set active recording and highlight in history
+    activeHistoryId = result.recording.id;
+    updateHistoryHighlight();
+
+    // Open the markdown editor for the recording
+    await openEditor(result.recording.id);
   } else {
     statusText.textContent = `Error: ${result.error}`;
+    showWelcomePanel();
   }
 }
 
 // ===== Screenshots =====
 
-screenshotBtn.addEventListener('click', async () => {
-  if (isRecording) {
-    await captureScreenshot(null, null);
-  }
-});
-
-// Note button - add standalone note without screenshot
-noteBtn.addEventListener('click', () => {
-  if (isRecording) {
-    pendingScreenshot = null; // null means standalone note
-    showNoteDialog('Add Note', false);
-  }
-});
+// Screenshot and Note buttons are now in the shortcuts panel (panelScreenshotBtn, panelNoteBtn)
 
 // Keyboard shortcuts
 document.addEventListener('keydown', async (e) => {
   if (!isRecording) return;
+
+  // Escape to stop recording
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    await stopRecording();
+    return;
+  }
+
   if (!e.ctrlKey || !e.shiftKey) return;
 
   if (e.code === 'KeyK') {
@@ -607,6 +702,22 @@ window.electronAPI.onActionRecorded((action) => {
     const count = parseInt(actionCount.textContent) + 1;
     actionCount.textContent = count;
   }
+
+  // Add to log panel
+  let logMessage = action.type;
+  if (action.type === 'click' && action.selector) {
+    logMessage = `click → ${action.selector}`;
+  } else if (action.type === 'fill' && action.selector) {
+    logMessage = `fill → ${action.selector} → "${action.value?.substring(0, 20)}${action.value?.length > 20 ? '...' : ''}"`;
+  } else if (action.type === 'goto' && action.url) {
+    logMessage = `goto → ${action.url}`;
+  } else if (action.type === 'screenshot') {
+    logMessage = `screenshot → ${action.filename || 'captured'}`;
+  } else if (action.type === 'note') {
+    logMessage = `note → "${action.note?.substring(0, 30)}${action.note?.length > 30 ? '...' : ''}"`;
+  }
+
+  addLogEntry(logMessage);
 });
 
 // ===== Note Dialog =====
@@ -648,7 +759,7 @@ saveNote.addEventListener('click', async () => {
 
 async function addStandaloneNote(note) {
   try {
-    const result = await window.electronAPI.recordAction({ type: 'note', note });
+    await window.electronAPI.recordAction({ type: 'note', note });
     statusText.textContent = 'Note added';
 
     // Add to preview
@@ -712,6 +823,14 @@ mdToolbar.addEventListener('click', (e) => {
 
 // ===== Panel Buttons =====
 
+if (panelStopBtn) {
+  panelStopBtn.addEventListener('click', async () => {
+    if (isRecording) {
+      await stopRecording();
+    }
+  });
+}
+
 if (panelScreenshotBtn) {
   panelScreenshotBtn.addEventListener('click', async () => {
     if (isRecording) {
@@ -738,30 +857,417 @@ if (panelClearBtn) {
   });
 }
 
+// ===== Refetch Screenshots =====
+
+async function refetchRecordingScreenshots(recordingId, actionBtn) {
+  if (isRecording) {
+    statusText.textContent = 'Cannot refetch while recording';
+    return;
+  }
+
+  statusText.textContent = 'Loading recording...';
+  actionBtn.disabled = true;
+
+  try {
+    // Load the recording data
+    const recording = await window.electronAPI.loadRecording(recordingId);
+    if (!recording || !recording.actions) {
+      throw new Error('Invalid recording data');
+    }
+
+    const { viewport = { width: 1280, height: 720 }, actions = [] } = recording;
+
+    // Filter to only goto and screenshot actions
+    const relevantActions = actions.filter(a => ['goto', 'screenshot'].includes(a.type));
+    if (relevantActions.length === 0) {
+      statusText.textContent = 'No actions to refetch';
+      actionBtn.disabled = false;
+      return;
+    }
+
+    // Show webview and hide other panels
+    welcomePanel.style.display = 'none';
+    editorPanel.style.display = 'none';
+    webview.classList.remove('hidden');
+    toolbar.style.display = 'flex';
+
+    // Set viewport
+    viewportInfo.textContent = `${viewport.width}x${viewport.height}`;
+
+    let screenshotCount = 0;
+    const totalScreenshots = relevantActions.filter(a => a.type === 'screenshot').length;
+
+    // Process each action
+    for (let i = 0; i < relevantActions.length; i++) {
+      const action = relevantActions[i];
+      statusText.textContent = `Refetching ${screenshotCount}/${totalScreenshots}...`;
+
+      if (action.type === 'goto') {
+        // Navigate to URL
+        webview.src = action.url;
+        urlInput.value = action.url;
+
+        // Wait for page to load
+        await new Promise((resolve, _reject) => {
+          const timeout = setTimeout(() => {
+            webview.removeEventListener('did-finish-load', onLoad);
+            webview.removeEventListener('did-fail-load', onFail);
+            resolve(); // Continue even on timeout
+          }, 30000);
+
+          const onLoad = () => {
+            clearTimeout(timeout);
+            webview.removeEventListener('did-fail-load', onFail);
+            resolve();
+          };
+
+          const onFail = (e) => {
+            clearTimeout(timeout);
+            webview.removeEventListener('did-finish-load', onLoad);
+            console.warn('Page load failed:', e);
+            resolve(); // Continue even on failure
+          };
+
+          webview.addEventListener('did-finish-load', onLoad, { once: true });
+          webview.addEventListener('did-fail-load', onFail, { once: true });
+        });
+
+        // Small delay for rendering
+        await new Promise(r => setTimeout(r, 500));
+
+      } else if (action.type === 'screenshot') {
+        // Apply highlight if present
+        if (action.highlight) {
+          webview.send('apply-highlight', action.highlight);
+          await new Promise(r => setTimeout(r, 200));
+        }
+
+        // Capture screenshot
+        const image = await webview.capturePage();
+        const dataUrl = image.toDataURL();
+
+        // Save screenshot via IPC (reuse existing handler)
+        await window.electronAPI.saveRefetchedScreenshot({
+          recordingId,
+          filename: action.filename,
+          imageDataUrl: dataUrl
+        });
+
+        screenshotCount++;
+
+        // Clear highlight
+        if (action.highlight) {
+          webview.send('clear-highlight');
+        }
+      }
+    }
+
+    // Regenerate markdown
+    await window.electronAPI.regenerateMarkdown(recordingId);
+
+    statusText.textContent = `Refetched ${screenshotCount} screenshots`;
+
+    // Refresh editor if viewing this recording
+    if (activeHistoryId === recordingId) {
+      await openEditor(recordingId);
+    } else {
+      showWelcomePanel();
+    }
+
+  } catch (error) {
+    console.error('Refetch error:', error);
+    statusText.textContent = `Refetch failed: ${error.message}`;
+  }
+
+  actionBtn.disabled = false;
+}
+
 // ===== History Actions =====
 
 historyList.addEventListener('click', async (e) => {
-  const item = e.target.closest('.history-item');
+  const item = e.target.closest('[data-id]');
   if (!item) return;
 
   const id = item.dataset.id;
-  const action = e.target.closest('button')?.dataset.action;
+  const actionBtn = e.target.closest('button[data-action]');
 
-  if (action === 'open') {
-    await window.electronAPI.openRecordingFolder(id);
-  } else if (action === 'delete') {
-    if (confirm('Delete this recording?')) {
-      await window.electronAPI.deleteRecording(id);
-      loadHistory();
+  if (actionBtn) {
+    const action = actionBtn.dataset.action;
+    if (action === 'open') {
+      await window.electronAPI.openRecordingFolder(id);
+    } else if (action === 'refetch') {
+      await refetchRecordingScreenshots(id, actionBtn);
+    } else if (action === 'delete') {
+      if (confirm('Delete this recording?')) {
+        await window.electronAPI.deleteRecording(id);
+        loadHistory();
+        // If we're viewing this recording, go back to welcome
+        if (activeHistoryId === id) {
+          showWelcomePanel();
+        }
+      }
+    }
+  } else {
+    // Clicked on the item itself - open the editor
+    if (!isRecording) {
+      await openEditor(id);
     }
   }
 });
 
-// ===== Toggle Sidebar =====
+// ===== Action Log =====
 
-document.getElementById('toggleSidebar').addEventListener('click', () => {
-  sidebar.classList.toggle('collapsed');
+function addLogEntry(message, type = 'action') {
+  const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const entry = document.createElement('div');
+  entry.className = type === 'info' ? 'text-slate-500' : 'text-slate-400';
+  entry.innerHTML = `<span class="text-slate-600">[${timestamp}]</span> ${escapeHtml(message)}`;
+  logContent.appendChild(entry);
+  logContent.scrollTop = logContent.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ===== Toggle Buttons =====
+
+toggleLogBtn.addEventListener('click', async () => {
+  const isVisible = logPanel.style.display !== 'none';
+  logPanel.style.display = isVisible ? 'none' : 'block';
+  toggleLogBtn.classList.toggle('text-teal-400', !isVisible);
+  toggleLogBtn.classList.toggle('text-slate-600', isVisible);
+
+  // Save preference
+  await window.electronAPI.saveSettings({ showLog: !isVisible });
+  currentSettings.showLog = !isVisible;
 });
+
+toggleShortcutsBtn.addEventListener('click', async () => {
+  const isVisible = !shortcutsPanel.classList.contains('hidden');
+  shortcutsPanel.classList.toggle('hidden');
+  toggleShortcutsBtn.classList.toggle('text-teal-400', !isVisible);
+  toggleShortcutsBtn.classList.toggle('text-slate-600', isVisible);
+
+  // Save preference
+  await window.electronAPI.saveSettings({ showShortcuts: !isVisible });
+  currentSettings.showShortcuts = !isVisible;
+});
+
+// ===== History Highlight =====
+
+function updateHistoryHighlight() {
+  const items = historyList.querySelectorAll('[data-id]');
+  items.forEach(item => {
+    if (item.dataset.id === activeHistoryId) {
+      item.classList.add('ring-2', 'ring-teal-500/50', 'bg-slate-800/70');
+    } else {
+      item.classList.remove('ring-2', 'ring-teal-500/50', 'bg-slate-800/70');
+    }
+  });
+}
+
+// ===== Markdown Editor =====
+
+async function openEditor(recordingId) {
+  try {
+    // Get the markdown file path for this recording
+    const result = await window.electronAPI.getRecordingMarkdown(recordingId);
+
+    if (!result.success) {
+      statusText.textContent = result.error || 'Failed to load markdown';
+      showWelcomePanel();
+      return;
+    }
+
+    // Store state
+    activeHistoryId = recordingId;
+    _editorFilePath = result.filePath;
+    editorRecordingDir = result.recordingDir;
+    editorOriginalContent = result.content;
+
+    // Set editor content
+    editorTextarea.value = result.content;
+    editorTitle.textContent = result.title || 'Untitled';
+    editorStatus.textContent = '';
+
+    // Update preview
+    updateEditorPreview();
+
+    // Show editor panel, hide others
+    welcomePanel.style.display = 'none';
+    webview.classList.add('hidden');
+    toolbar.style.display = 'none';
+    editorPanel.style.display = 'flex';
+
+    // Update history highlight
+    updateHistoryHighlight();
+
+    statusText.textContent = 'Editing markdown';
+  } catch (error) {
+    console.error('Error opening editor:', error);
+    statusText.textContent = `Error: ${error.message}`;
+  }
+}
+
+function updateEditorPreview() {
+  const markdown = editorTextarea.value;
+  // Simple markdown to HTML conversion (basic implementation)
+  const html = simpleMarkdownToHtml(markdown);
+  editorPreview.innerHTML = html;
+}
+
+function simpleMarkdownToHtml(markdown) {
+  // Extract and render frontmatter separately
+  let content = markdown;
+  let frontmatterHtml = '';
+
+  const frontmatterMatch = markdown.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (frontmatterMatch) {
+    content = markdown.slice(frontmatterMatch[0].length);
+    const frontmatterLines = frontmatterMatch[1].split('\n');
+    const fields = frontmatterLines
+      .filter(line => line.includes(':'))
+      .map(line => {
+        const [key, ...valueParts] = line.split(':');
+        const value = valueParts.join(':').trim().replace(/^["']|["']$/g, '');
+        return `<div class="flex gap-2"><span class="text-slate-500">${key.trim()}:</span><span class="text-slate-300">${value}</span></div>`;
+      })
+      .join('');
+    frontmatterHtml = `<div class="mb-6 p-4 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm font-mono">${fields}</div>`;
+  }
+
+  // Basic markdown parsing - handles common cases
+  let html = content
+    // Escape HTML first
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // Headers
+    .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.*)$/gm, '<h1>$1</h1>')
+    // Bold and italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Code blocks
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Images - resolve relative paths to absolute file:// URLs
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, src) => {
+      // If it's a relative path and we have a recording directory, make it absolute
+      if (editorRecordingDir && !src.startsWith('http') && !src.startsWith('file://')) {
+        const absolutePath = editorRecordingDir.replace(/\\/g, '/') + '/' + src;
+        return `<img src="file:///${absolutePath}" alt="${alt}" class="max-w-full rounded-lg">`;
+      }
+      return `<img src="${src}" alt="${alt}" class="max-w-full rounded-lg">`;
+    })
+    // Links
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-teal-400 hover:underline">$1</a>')
+    // Horizontal rules
+    .replace(/^---$/gm, '<hr class="border-slate-700 my-4">')
+    // Unordered lists
+    .replace(/^- (.*)$/gm, '<li>$1</li>')
+    // Ordered lists
+    .replace(/^\d+\. (.*)$/gm, '<li>$1</li>')
+    // Paragraphs (lines with content)
+    .replace(/^(?!<[h|l|p|u|o|i|c|a|s|b|e|hr])(.+)$/gm, '<p>$1</p>')
+    // Wrap consecutive li elements in ul/ol
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul class="list-disc list-inside space-y-1">$&</ul>')
+    // Clean up extra newlines
+    .replace(/\n\n+/g, '\n');
+
+  return frontmatterHtml + html;
+}
+
+// Editor event handlers
+editorTextarea.addEventListener('input', () => {
+  updateEditorPreview();
+
+  // Show unsaved indicator
+  const hasChanges = editorTextarea.value !== editorOriginalContent;
+  editorStatus.textContent = hasChanges ? 'Unsaved changes' : '';
+});
+
+editorBackBtn.addEventListener('click', () => {
+  const hasChanges = editorTextarea.value !== editorOriginalContent;
+  if (hasChanges) {
+    if (!confirm('You have unsaved changes. Discard them?')) {
+      return;
+    }
+  }
+  showWelcomePanel();
+});
+
+editorSaveBtn.addEventListener('click', async () => {
+  try {
+    const result = await window.electronAPI.saveRecordingMarkdown(activeHistoryId, editorTextarea.value);
+
+    if (result.success) {
+      editorOriginalContent = editorTextarea.value;
+      editorStatus.textContent = 'Saved';
+      statusText.textContent = 'Markdown saved';
+      setTimeout(() => {
+        if (editorStatus.textContent === 'Saved') {
+          editorStatus.textContent = '';
+        }
+      }, 2000);
+    } else {
+      statusText.textContent = result.error || 'Failed to save';
+    }
+  } catch (error) {
+    console.error('Error saving:', error);
+    statusText.textContent = `Error: ${error.message}`;
+  }
+});
+
+editorDiscardBtn.addEventListener('click', () => {
+  if (editorTextarea.value === editorOriginalContent) {
+    return;
+  }
+  if (confirm('Discard all changes?')) {
+    editorTextarea.value = editorOriginalContent;
+    updateEditorPreview();
+    editorStatus.textContent = '';
+  }
+});
+
+// Editor markdown toolbar
+if (editorMdToolbar) {
+  editorMdToolbar.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-editor-md]');
+    if (!btn) return;
+
+    const type = btn.dataset.editorMd;
+    const start = editorTextarea.selectionStart;
+    const end = editorTextarea.selectionEnd;
+    const text = editorTextarea.value;
+    const selected = text.substring(start, end);
+
+    let before = '', after = '', insert = '';
+
+    switch (type) {
+      case 'bold': before = '**'; after = '**'; insert = selected || 'text'; break;
+      case 'italic': before = '*'; after = '*'; insert = selected || 'text'; break;
+      case 'code': before = '`'; after = '`'; insert = selected || 'code'; break;
+      case 'link': before = '['; after = '](url)'; insert = selected || 'link text'; break;
+      case 'h1': before = '# '; after = ''; insert = selected || 'Heading'; break;
+      case 'h2': before = '## '; after = ''; insert = selected || 'Heading'; break;
+      case 'ul': before = '- '; after = ''; insert = selected || 'item'; break;
+      case 'ol': before = '1. '; after = ''; insert = selected || 'item'; break;
+    }
+
+    editorTextarea.value = text.substring(0, start) + before + insert + after + text.substring(end);
+    editorTextarea.focus();
+    editorTextarea.selectionStart = start + before.length;
+    editorTextarea.selectionEnd = start + before.length + insert.length;
+    updateEditorPreview();
+  });
+}
 
 // Keyboard shortcuts are now handled above in the screenshot button section
 

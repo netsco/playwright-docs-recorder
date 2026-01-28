@@ -4,35 +4,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Playwright Documentation Recorder - a tool that records browser interactions with on-demand screenshots and element highlighting, then generates rerunnable Playwright scripts with markdown documentation.
+Playwright Documentation Recorder - an npm workspaces monorepo with CLI and desktop tools for recording browser interactions with on-demand screenshots and element highlighting. Generates rerunnable Playwright scripts with markdown documentation.
+
+### Packages
+
+| Package | Path | Description |
+|---------|------|-------------|
+| `@doc-recorder/cli` | `packages/cli/` | Command-line recorder tool |
+| `@doc-recorder/desktop` | `packages/desktop/` | Electron desktop app with GUI |
+| `@doc-recorder/shared` | `packages/shared/` | Shared utilities (script/markdown generation) |
 
 ## Commands
 
 ```bash
-# Install dependencies
+# Install all dependencies (workspaces)
 npm install
 
-# Start recording
-node recorder.js <url> [output-dir] [viewport] [title]
+# CLI - Start recording
+npm run record <url> [options]
+npm run record https://example.com -o ./my-docs -t "Guide"
 
-# Examples
-node recorder.js https://example.com ./my-docs
-node recorder.js https://example.com ./my-docs 1920x1080
-node recorder.js https://example.com ./my-docs 1280x720 "Getting Started Guide"
+# Desktop - Launch Electron app
+npm run desktop
+
+# Desktop - Build for distribution
+npm run desktop:build
 
 # Replay a recorded session
 node doc-output/recorded-script.js
 
 # Generate video from recorded actions (requires ffmpeg)
 node generate-recording.js <actions.json> [options]
-
-# Video examples
-node generate-recording.js ./doc-output/actions.json
-node generate-recording.js ./doc-output/actions.json -f gif -o ./my-recording
-node generate-recording.js ./doc-output/actions.json --fps 4 --format webm
 ```
 
-Default viewport is 1280x720. Title adds YAML front matter to generated markdown.
+### CLI Options
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-o, --output <dir>` | Output directory | ./doc-output |
+| `-v, --viewport <size>` | Viewport (WIDTHxHEIGHT) | 1280x720 |
+| `-t, --title <title>` | Document title | none |
+| `-s, --separator <sep>` | Screenshot separator | `---` |
+| `--screenshots-only` | Skip recording clicks/fills | false |
+| `--refetch <dir>` | Refetch screenshots from recording | - |
 
 ### Video Generation Options
 | Option | Description | Default |
@@ -61,14 +74,15 @@ Default viewport is 1280x720. Title adds YAML front matter to generated markdown
 
 ## Architecture
 
-Single-file tool (`recorder.js`) containing the `DocRecorder` class:
+### @doc-recorder/cli (`packages/cli/`)
+
+`DocRecorder` class in `index.js`:
 
 - **Browser orchestration**: Launches Chromium via Playwright with configurable viewport, injects recording scripts into pages
 - **Action recording**: Captures clicks, form inputs, and navigations via DOM event listeners
 - **Selector generation**: Prioritizes: `#id` > `[data-testid]` > `[role][aria-label]` > text content > class combos > CSS path
-- **Screenshot capture**: Via mouse (Ctrl+Click) or keyboard shortcuts, with highlight overlay and optional markdown notes
-- **Script generation**: Outputs standalone Playwright script that replays actions, regenerates screenshots and markdown
-- **Markdown generation**: Creates `screenshots.md` with YAML front matter (if title provided) and embedded screenshots
+- **Screenshot capture**: Via keyboard shortcuts, with highlight overlay and optional markdown notes
+- **Output generation**: Uses `@doc-recorder/shared` for script and markdown generation
 
 Communication between browser and Node via `page.exposeFunction()`:
 - `__recordAction` - logs clicks/inputs
@@ -79,13 +93,54 @@ Communication between browser and Node via `page.exposeFunction()`:
 - Shortcuts legend panel (bottom-right)
 - Note dialog with markdown toolbar (Bold, Italic, H1, H2, Lists, Code, Link)
 
+### @doc-recorder/desktop (`packages/desktop/`)
+
+Electron app with IPC architecture:
+
+```
+src/
+├── main/           # Main process
+│   ├── main.js     # App entry, window creation
+│   ├── ipc-handlers.js   # Recording control handlers
+│   ├── file-manager.js   # Save/load recordings
+│   └── settings-store.js # Persistent settings
+├── renderer/       # Renderer process
+│   ├── index.html  # Main UI
+│   ├── renderer.js # UI logic, webview management
+│   └── preload.js  # Context bridge
+└── webview/        # Webview scripts
+    └── webview-preload.js
+```
+
+- **Electron Store**: Persists window bounds, output directory, viewport, recent URLs
+- **Webview**: Embeds recording target with injected preload scripts
+- **Tailwind CSS**: Styling via `src/renderer/styles/`
+
+Desktop-specific features:
+- Viewport presets (HD, Full HD, Mobile, Tablet, Custom)
+- Screenshots-only mode with credentials warning
+- Refetch screenshots from existing recordings
+- Draggable recorder panel (constrained to viewport)
+- "+" button to start new recording (hidden during active recording)
+- Built-in markdown editor with live preview
+
+### @doc-recorder/shared (`packages/shared/`)
+
+Shared utilities consumed by CLI and desktop:
+
+- `generateScript(recording)` - Creates rerunnable Playwright script
+- `generateMarkdown(recording)` - Creates markdown with optional YAML front matter
+- `slugify(text)` - Converts titles to valid filenames
+- `refetchScreenshots(dir, options)` - Replays goto/screenshot actions to regenerate images
+- `getLegendHTML()`, `getLegendStyles()`, `getKbdStyles()` - Shared recorder UI templates
+
 ## Output Structure
 
-Recordings output to `doc-output/` (or custom dir):
+Both CLI and desktop output to `doc-output/` (or custom dir):
 - `recorded-script.js` - Rerunnable Playwright script
 - `screenshots/` - Captured PNG screenshots
-- `screenshots.md` - Markdown with front matter and embedded images
-- `actions.json` - Action log with title, viewport, and actions array
+- `<title>.md` - Markdown with front matter (filename is slugified title, e.g., `getting-started.md`)
+- `actions.json` - Action log with title, viewport, mdFilename, and actions array
 
 ## Video Generation
 
