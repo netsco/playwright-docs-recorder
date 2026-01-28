@@ -1178,8 +1178,10 @@ function simpleMarkdownToHtml(markdown) {
     .replace(/^(?!<[h|l|p|u|o|i|c|a|s|b|e|hr])(.+)$/gm, '<p>$1</p>')
     // Wrap consecutive li elements in ul/ol
     .replace(/(<li>.*<\/li>\n?)+/g, '<ul class="list-disc list-inside space-y-1">$&</ul>')
-    // Clean up extra newlines
-    .replace(/\n\n+/g, '\n');
+    // Convert newlines to <br> for line break support, then clean up redundant breaks around block elements
+    .replace(/\n/g, '<br>')
+    .replace(/<br>(<(h[1-6]|p|ul|ol|li|pre|hr|div|blockquote|img)[^>]*>)/gi, '$1')
+    .replace(/(<\/(h[1-6]|p|ul|ol|li|pre|hr|div|blockquote)>)<br>/gi, '$1');
 
   return frontmatterHtml + html;
 }

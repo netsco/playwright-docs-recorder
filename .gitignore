@@ -29,6 +29,8 @@ build/
 .vscode/
 *.swp
 *.swo
+~*.bak
+~*.saved.bak
 
 # OS files
 .DS_Store
@@ -40,3 +42,6 @@ Thumbs.db
 # Temp files
 nul
 docs/
+
+# Root-level binary files (app icons live in packages/)
+/icon.png
