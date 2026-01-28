@@ -244,8 +244,10 @@
           </div>
         </div>
 
-        <!-- Webview (hidden until recording starts) -->
-        <webview id="webview" class="hidden"></webview>
+        <!-- Webview Container (hidden until recording starts) -->
+        <div id="webviewContainer" class="webview-container hidden">
+          <webview id="webview"></webview>
+        </div>
 
         <!-- Markdown Editor Panel (shown after recording or when viewing history) -->
         <div id="editorPanel" class="absolute inset-0 flex bg-slate-950 z-20" style="display: none;">
@@ -432,7 +434,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
             </svg>
           </button>
-          <span class="text-slate-600" id="viewportInfo">1280 x 720</span>
+          <span class="text-slate-600 hidden" id="viewportInfo"></span>
         </div>
       </footer>
     </main>

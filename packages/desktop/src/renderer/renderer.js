@@ -3,6 +3,7 @@
 // DOM Elements
 const historyList = document.getElementById('historyList');
 const webview = document.getElementById('webview');
+const webviewContainer = document.getElementById('webviewContainer');
 const urlInput = document.getElementById('urlInput');
 const toolbar = document.getElementById('toolbar');
 const backBtn = document.getElementById('backBtn');
@@ -464,7 +465,7 @@ if (newRecordingBtn) {
     welcomePanel.style.display = '';
     editorPanel.style.display = 'none';
     toolbar.style.display = 'none';
-    webview.classList.add('hidden');
+    webviewContainer.classList.add('hidden');
 
     // Reset form
     welcomeUrl.value = '';
@@ -587,7 +588,13 @@ async function startFromWelcomePanel() {
 
   // Hide welcome panel and show webview
   welcomePanel.style.display = 'none';
-  webview.classList.remove('hidden');
+  webviewContainer.classList.remove('hidden');
+
+  // Set webview to exact viewport dimensions
+  webview.style.width = `${viewport.width}px`;
+  webview.style.height = `${viewport.height}px`;
+  webview.style.minWidth = `${viewport.width}px`;
+  webview.style.minHeight = `${viewport.height}px`;
 
   // Show toolbar
   toolbar.style.display = 'flex';
@@ -611,14 +618,15 @@ function showWelcomePanel() {
   // Show welcome panel, hide webview and editor
   welcomePanel.style.display = '';
   editorPanel.style.display = 'none';
-  webview.classList.add('hidden');
+  webviewContainer.classList.add('hidden');
   webview.src = 'data:text/html,';
 
-  // Hide toolbar and toggle buttons
+  // Hide toolbar, toggle buttons, and viewport info
   toolbar.style.display = 'none';
   toggleLogBtn.style.display = 'none';
   toggleShortcutsBtn.style.display = 'none';
   logPanel.style.display = 'none';
+  viewportInfo.classList.add('hidden');
 
   // Clear active history selection
   activeHistoryId = null;
@@ -649,7 +657,7 @@ async function startRecording(url, title, viewport, separator, recordActions = t
     // Ensure webview is visible and welcome panel is hidden
     welcomePanel.style.display = 'none';
     editorPanel.style.display = 'none';
-    webview.classList.remove('hidden');
+    webviewContainer.classList.remove('hidden');
 
     // Show toolbar
     toolbar.style.display = 'flex';
@@ -672,15 +680,18 @@ async function startRecording(url, title, viewport, separator, recordActions = t
     if (screenshotSection) screenshotSection.style.display = 'block';
     if (screenshotPreviews) screenshotPreviews.innerHTML = '';
 
-    // Show shortcuts panel based on preference
-    if (shortcutsPanel && currentSettings.showShortcuts !== false) {
+    // Always show shortcuts panel at recording start
+    if (shortcutsPanel) {
       shortcutsPanel.classList.remove('hidden');
     }
 
-    // Show log panel based on preference
-    if (currentSettings.showLog) {
-      logPanel.style.display = 'block';
-    }
+    // Always hide log panel at recording start
+    logPanel.style.display = 'none';
+
+    // Show and update viewport info
+    const vp = viewport || currentSettings.viewport;
+    viewportInfo.textContent = `${vp.width} x ${vp.height}`;
+    viewportInfo.classList.remove('hidden');
 
     // Clear log content
     logContent.innerHTML = '';
@@ -721,6 +732,11 @@ async function stopRecording() {
   // Hide shortcuts panel and log panel
   if (shortcutsPanel) shortcutsPanel.classList.add('hidden');
   logPanel.style.display = 'none';
+
+  // Hide toggle buttons and viewport info
+  toggleLogBtn.style.display = 'none';
+  toggleShortcutsBtn.style.display = 'none';
+  viewportInfo.classList.add('hidden');
 
   // Hide toolbar
   toolbar.style.display = 'none';
@@ -784,9 +800,37 @@ document.addEventListener('keydown', async (e) => {
   }
 });
 
+// Helper to hide scrollbars during screenshot capture
+async function hideScrollbarsForScreenshot() {
+  await webview.executeJavaScript(`
+    (function() {
+      const style = document.createElement('style');
+      style.id = '__doc-recorder-hide-scrollbars';
+      style.textContent = \`
+        *::-webkit-scrollbar { display: none !important; }
+        * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+      \`;
+      document.head.appendChild(style);
+    })()
+  `);
+}
+
+// Helper to restore scrollbars after screenshot capture
+async function restoreScrollbarsAfterScreenshot() {
+  await webview.executeJavaScript(`
+    (function() {
+      const style = document.getElementById('__doc-recorder-hide-scrollbars');
+      if (style) style.remove();
+    })()
+  `);
+}
+
 async function captureScreenshot(selector, note, fullPage = false) {
   try {
     console.log('Capturing screenshot...', { selector, note, fullPage });
+
+    // Hide scrollbars before capture
+    await hideScrollbarsForScreenshot();
 
     let dataUrl;
 
@@ -798,6 +842,9 @@ async function captureScreenshot(selector, note, fullPage = false) {
       const image = await webview.capturePage();
       dataUrl = image.toDataURL();
     }
+
+    // Restore scrollbars after capture
+    await restoreScrollbarsAfterScreenshot();
 
     console.log('Image captured, size:', dataUrl.length);
 
@@ -821,6 +868,8 @@ async function captureScreenshot(selector, note, fullPage = false) {
       statusText.textContent = `Screenshot failed: ${result.error}`;
     }
   } catch (error) {
+    // Ensure scrollbars are restored even on error
+    await restoreScrollbarsAfterScreenshot().catch(() => {});
     console.error('Screenshot error:', error);
     statusText.textContent = `Screenshot error: ${error.message}`;
   }
@@ -1185,11 +1234,18 @@ async function refetchRecordingScreenshots(recordingId, actionBtn) {
     // Show webview and hide other panels
     welcomePanel.style.display = 'none';
     editorPanel.style.display = 'none';
-    webview.classList.remove('hidden');
+    webviewContainer.classList.remove('hidden');
     toolbar.style.display = 'flex';
 
-    // Set viewport
-    viewportInfo.textContent = `${viewport.width}x${viewport.height}`;
+    // Set webview to exact viewport dimensions
+    webview.style.width = `${viewport.width}px`;
+    webview.style.height = `${viewport.height}px`;
+    webview.style.minWidth = `${viewport.width}px`;
+    webview.style.minHeight = `${viewport.height}px`;
+
+    // Show and update viewport info
+    viewportInfo.textContent = `${viewport.width} x ${viewport.height}`;
+    viewportInfo.classList.remove('hidden');
 
     let screenshotCount = 0;
     const totalScreenshots = relevantActions.filter(a => a.type === 'screenshot').length;
@@ -1399,7 +1455,7 @@ async function openEditor(recordingId) {
 
     // Show editor panel, hide others
     welcomePanel.style.display = 'none';
-    webview.classList.add('hidden');
+    webviewContainer.classList.add('hidden');
     toolbar.style.display = 'none';
     editorPanel.style.display = 'flex';
     toggleLogBtn.style.display = 'none';
