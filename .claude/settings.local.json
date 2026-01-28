@@ -49,7 +49,9 @@
       "Bash(npm run pack:*)",
       "Bash(npx asar:*)",
       "Bash(grep:*)",
-      "Bash(npx changeset init)"
+      "Bash(npx changeset init)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)"
     ]
   },
   "enabledPlugins": {
