@@ -45,3 +45,5 @@ docs/
 
 # Root-level binary files (app icons live in packages/)
 /icon.png
+/.plans
+Screenshot-*.png

@@ -36,6 +36,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveRefetchedScreenshot: (data) => ipcRenderer.invoke('save-refetched-screenshot', data),
   regenerateMarkdown: (id) => ipcRenderer.invoke('regenerate-markdown', id),
 
+  // Screenshot Editor
+  getScreenshotPath: (recordingId, filename) => ipcRenderer.invoke('get-screenshot-path', recordingId, filename),
+  saveScreenshotEdits: (data) => ipcRenderer.invoke('save-screenshot-edits', data),
+  resetScreenshotToOriginal: (data) => ipcRenderer.invoke('reset-screenshot-to-original', data),
+
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

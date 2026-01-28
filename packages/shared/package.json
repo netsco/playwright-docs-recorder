@@ -1,6 +1,6 @@
 {
   "name": "@doc-recorder/shared",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared utilities for Documentation Recorder",
   "main": "index.js",
   "exports": {
@@ -15,10 +15,14 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "playwright": "^1.40.0"
+    "playwright": "^1.40.0",
+    "sharp": "^0.33.0"
   },
   "peerDependenciesMeta": {
     "playwright": {
+      "optional": true
+    },
+    "sharp": {
       "optional": true
     }
   }

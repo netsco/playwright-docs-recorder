@@ -1,3 +1,4 @@
+/* global document */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -88,7 +89,7 @@ class RecordingGenerator {
     return outputFile;
   }
 
-  async executeAction(page, action, framesDir, baseDir) {
+  async executeAction(page, action, framesDir, _baseDir) {
     switch (action.type) {
       case 'goto':
         await page.goto(action.url, { waitUntil: 'networkidle', timeout: 30000 }).catch(() =>
@@ -210,7 +211,7 @@ class RecordingGenerator {
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/`(.+?)`/g, '<code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;font-family:monospace;">$1</code>')
-        .replace(/^\- (.+)$/gm, '<li>$1</li>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
         .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
         .replace(/\n/g, '<br>');
 
@@ -358,9 +359,13 @@ Options:
   --width <n>            Video width (default: 1280)
   --height <n>           Video height (default: 720)
   --note-position <pos>  Note overlay position: top, bottom (default: bottom)
+  --action-gifs          Generate per-action GIFs (click/fill animations)
+  --gifs-only            Only generate action GIFs, skip video
 
 Example:
   node generate-recording.js ./doc-output/actions.json -f gif -o ./my-recording
+  node generate-recording.js ./doc-output/actions.json --action-gifs
+  node generate-recording.js ./doc-output/actions.json --gifs-only
 `);
   process.exit(0);
 }
@@ -374,6 +379,7 @@ const getOpt = (flags) => {
   }
   return null;
 };
+const hasFlag = (flag) => args.includes(flag);
 
 const options = {
   outputDir: getOpt(['--output', '-o']) || './recording-output',
@@ -383,7 +389,9 @@ const options = {
     width: parseInt(getOpt(['--width'])) || 1280,
     height: parseInt(getOpt(['--height'])) || 720
   },
-  notePosition: getOpt(['--note-position']) || 'bottom'
+  notePosition: getOpt(['--note-position']) || 'bottom',
+  actionGifs: hasFlag('--action-gifs'),
+  gifsOnly: hasFlag('--gifs-only'),
 };
 
 if (!actionsFile) {
@@ -391,4 +399,30 @@ if (!actionsFile) {
   process.exit(1);
 }
 
-new RecordingGenerator(options).generate(actionsFile);
+async function main() {
+  // Generate action GIFs if requested
+  if (options.actionGifs || options.gifsOnly) {
+    const { generateAllActionGifs } = require('@doc-recorder/shared');
+    console.log('\n📽️  Generating per-action GIFs...\n');
+    await generateAllActionGifs({
+      actionsFile,
+      outputDir: options.outputDir,
+      config: {
+        delay: Math.round(1000 / options.frameRate),
+        width: options.videoSize.width,
+        height: options.videoSize.height,
+      },
+    });
+  }
+
+  // Generate video unless --gifs-only
+  if (!options.gifsOnly) {
+    console.log('\n🎬  Generating video recording...\n');
+    await new RecordingGenerator(options).generate(actionsFile);
+  }
+}
+
+main().catch(err => {
+  console.error('Error:', err.message);
+  process.exit(1);
+});

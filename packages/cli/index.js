@@ -49,8 +49,8 @@ class DocRecorder {
       console.log(`📝 ${action.type}: ${action.selector || action.url || ''}`);
     });
 
-    await page.exposeFunction('__takeScreenshot', async (selector, note) => {
-      await this.takeScreenshot(selector, note);
+    await page.exposeFunction('__takeScreenshot', async (selector, note, fullPage = false) => {
+      await this.takeScreenshot(selector, note, fullPage);
     });
 
     await page.exposeFunction('__notifyHighlight', (selector) => {
@@ -432,7 +432,15 @@ class DocRecorder {
         e.preventDefault();
         e.stopPropagation();
         const sel = highlighted ? getSelector(highlighted) : null;
-        await window.__takeScreenshot(sel, null);
+        await window.__takeScreenshot(sel, null, false);
+        clearHighlight();
+      });
+
+      document.getElementById('__btn-fullpage').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = highlighted ? getSelector(highlighted) : null;
+        await window.__takeScreenshot(sel, null, true);
         clearHighlight();
       });
 
@@ -483,7 +491,15 @@ class DocRecorder {
           e.preventDefault();
           e.stopPropagation();
           const sel = highlighted ? getSelector(highlighted) : null;
-          window.__takeScreenshot(sel, null).then(() => clearHighlight());
+          window.__takeScreenshot(sel, null, false).then(() => clearHighlight());
+        }
+
+        // F = Full page screenshot
+        if (code === 'KeyF') {
+          e.preventDefault();
+          e.stopPropagation();
+          const sel = highlighted ? getSelector(highlighted) : null;
+          window.__takeScreenshot(sel, null, true).then(() => clearHighlight());
         }
 
         // X = Clear highlight
@@ -573,7 +589,7 @@ class DocRecorder {
     }, { legendHTML, legendStyles, kbdStyles });
   }
 
-  async takeScreenshot(highlightSelector, note) {
+  async takeScreenshot(highlightSelector, note, fullPage = false) {
     this.screenshotCounter++;
     const filename = `screenshot-${String(this.screenshotCounter).padStart(3, '0')}.png`;
     const filepath = path.join(this.outputDir, 'screenshots', filename);
@@ -584,7 +600,7 @@ class DocRecorder {
       if (legend) legend.style.display = 'none';
     });
 
-    await this.page.screenshot({ path: filepath });
+    await this.page.screenshot({ path: filepath, fullPage });
 
     // Show legend after screenshot
     await this.page.evaluate(() => {
@@ -592,10 +608,11 @@ class DocRecorder {
       if (legend) legend.style.display = 'block';
     });
 
-    this.screenshots.push({ filename, highlight: highlightSelector, note });
-    this.actions.push({ type: 'screenshot', filename, highlight: highlightSelector, note });
+    this.screenshots.push({ filename, highlight: highlightSelector, note, fullPage });
+    this.actions.push({ type: 'screenshot', filename, highlight: highlightSelector, note, fullPage });
 
-    console.log(`📸 ${filename}${highlightSelector ? ` [${highlightSelector}]` : ''}${note ? ` - ${note}` : ''}`);
+    const fullPageLabel = fullPage ? ' [full page]' : '';
+    console.log(`📸 ${filename}${fullPageLabel}${highlightSelector ? ` [${highlightSelector}]` : ''}${note ? ` - ${note}` : ''}`);
   }
 
   async stop() {
@@ -647,6 +664,7 @@ class DocRecorder {
 │  Ctrl+Hover        Preview highlight        │
 │  Ctrl+Click        Lock highlight           │
 │  Ctrl+Shift+S      Take screenshot          │
+│  Ctrl+Shift+F      Full page screenshot     │
 │  Ctrl+Shift+K      Screenshot + note        │
 │  Ctrl+Shift+X      Clear highlight          │
 │  Ctrl+C            Stop & save script       │

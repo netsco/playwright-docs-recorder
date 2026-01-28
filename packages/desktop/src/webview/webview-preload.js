@@ -31,15 +31,15 @@ ipcRenderer.on('clear-highlight', () => {
 });
 
 // Listen for screenshot requests from renderer
-ipcRenderer.on('take-screenshot', (event, { withNote }) => {
+ipcRenderer.on('take-screenshot', (event, { withNote, fullPage = false }) => {
   if (!isRecording) return;
 
   const selector = highlighted ? getSelector(highlighted) : null;
 
   if (withNote) {
-    ipcRenderer.sendToHost('request-screenshot', { selector, withNote: true });
+    ipcRenderer.sendToHost('request-screenshot', { selector, withNote: true, fullPage });
   } else {
-    ipcRenderer.sendToHost('request-screenshot', { selector, note: null, withNote: false });
+    ipcRenderer.sendToHost('request-screenshot', { selector, note: null, withNote: false, fullPage });
   }
 });
 
@@ -222,7 +222,15 @@ function setupEventListeners() {
       e.preventDefault();
       e.stopPropagation();
       const sel = highlighted ? getSelector(highlighted) : null;
-      ipcRenderer.sendToHost('request-screenshot', { selector: sel, note: null, withNote: false });
+      ipcRenderer.sendToHost('request-screenshot', { selector: sel, note: null, withNote: false, fullPage: false });
+    }
+
+    // F = Full page screenshot
+    if (code === 'KeyF') {
+      e.preventDefault();
+      e.stopPropagation();
+      const sel = highlighted ? getSelector(highlighted) : null;
+      ipcRenderer.sendToHost('request-screenshot', { selector: sel, note: null, withNote: false, fullPage: true });
     }
 
     // X = Clear highlight

@@ -1,6 +1,6 @@
 {
   "name": "doc-recorder",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Record browser actions with on-demand screenshots and element highlighting for documentation",
   "license": "MIT",
   "private": true,
@@ -27,19 +27,22 @@
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
     "@eslint/js": "^9.39.0",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9.39.0",
     "globals": "^16.2.0",
     "husky": "^9.1.7",
     "jsdom": "^27.4.0",
     "lint-staged": "^15.3.0",
     "memfs": "^4.17.0",
-    "vitest": "^2.1.8"
+    "vitest": "^4.0.18"
   },
   "lint-staged": {
     "*.js": [
       "eslint --fix",
       "vitest related --run"
     ]
+  },
+  "dependencies": {
+    "electron": "40.0.0"
   }
 }

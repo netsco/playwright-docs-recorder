@@ -86,6 +86,88 @@ let editorOriginalContent = '';
 let _editorFilePath = '';
 let editorRecordingDir = '';
 
+// ===== Undo/Redo Manager =====
+
+class UndoManager {
+  constructor(maxHistory = 100) {
+    this.history = [];
+    this.index = -1;
+    this.maxHistory = maxHistory;
+  }
+
+  push(state) {
+    // Truncate forward history when new state is pushed
+    this.history = this.history.slice(0, this.index + 1);
+    this.history.push({ ...state });
+    // Enforce max history limit
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    } else {
+      this.index++;
+    }
+  }
+
+  undo() {
+    if (this.index > 0) {
+      this.index--;
+      return { ...this.history[this.index] };
+    }
+    return null;
+  }
+
+  redo() {
+    if (this.index < this.history.length - 1) {
+      this.index++;
+      return { ...this.history[this.index] };
+    }
+    return null;
+  }
+
+  clear() {
+    this.history = [];
+    this.index = -1;
+  }
+
+  canUndo() {
+    return this.index > 0;
+  }
+
+  canRedo() {
+    return this.index < this.history.length - 1;
+  }
+}
+
+// Undo managers for textareas
+const editorUndoManager = new UndoManager();
+const noteUndoManager = new UndoManager();
+
+// Debounce helper for input tracking
+function debounce(fn, delay) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+// Push state to undo manager for a textarea
+function pushUndoState(textarea, undoManager) {
+  undoManager.push({
+    value: textarea.value,
+    selectionStart: textarea.selectionStart,
+    selectionEnd: textarea.selectionEnd
+  });
+}
+
+// Restore state from undo manager to a textarea
+function restoreUndoState(textarea, state, updatePreview = null) {
+  if (!state) return;
+  textarea.value = state.value;
+  textarea.selectionStart = state.selectionStart;
+  textarea.selectionEnd = state.selectionEnd;
+  if (updatePreview) updatePreview();
+}
+
 // ===== Initialization =====
 
 async function init() {
@@ -99,10 +181,11 @@ async function init() {
       return;
     }
 
-    // Set webview preload script
+    // Set webview preload script and webpreferences
     const preloadPath = window.electronAPI.getWebviewPreloadPath();
     console.log('Webview preload path:', preloadPath);
     webview.setAttribute('preload', preloadPath);
+    webview.setAttribute('webpreferences', 'contextIsolation=no, nodeIntegration=no');
 
     currentSettings = await window.electronAPI.getSettings();
     console.log('Settings loaded:', currentSettings);
@@ -256,7 +339,8 @@ webview.addEventListener('did-stop-loading', () => {
 
 webview.addEventListener('did-navigate', (e) => {
   urlInput.value = e.url;
-  if (isRecording && e.url !== 'about:blank') {
+  // Don't record internal/blank URLs
+  if (isRecording && e.url && !e.url.startsWith('about:') && !e.url.startsWith('data:')) {
     window.electronAPI.recordAction({ type: 'goto', url: e.url });
   }
 });
@@ -272,6 +356,13 @@ webview.addEventListener('page-title-updated', (e) => {
   document.title = `${e.title} - Documentation Recorder`;
 });
 
+// Auto-focus webview on mouse enter so keyboard events (Ctrl+hover/click) work
+webview.addEventListener('mouseenter', () => {
+  if (isRecording) {
+    webview.focus();
+  }
+});
+
 // IPC from webview
 webview.addEventListener('ipc-message', async (e) => {
   const { channel, args } = e;
@@ -285,12 +376,12 @@ webview.addEventListener('ipc-message', async (e) => {
 
     case 'request-screenshot':
       if (isRecording) {
-        const { selector, note, withNote } = args[0];
+        const { selector, note, withNote, fullPage = false } = args[0];
         if (withNote) {
-          pendingScreenshot = { selector };
+          pendingScreenshot = { selector, fullPage };
           showNoteDialog();
         } else {
-          await captureScreenshot(selector, note);
+          await captureScreenshot(selector, note, fullPage);
         }
       }
       break;
@@ -501,11 +592,7 @@ async function startFromWelcomePanel() {
   // Show toolbar
   toolbar.style.display = 'flex';
 
-  // Show toggle buttons in status bar
-  toggleLogBtn.style.display = 'block';
-  toggleShortcutsBtn.style.display = 'block';
-
-  // Navigate to URL first
+  // Navigate to URL first (toggle buttons shown after recording starts)
   navigateTo(url);
 
   // Wait for page to load, then start recording
@@ -525,7 +612,7 @@ function showWelcomePanel() {
   welcomePanel.style.display = '';
   editorPanel.style.display = 'none';
   webview.classList.add('hidden');
-  webview.src = 'about:blank';
+  webview.src = 'data:text/html,';
 
   // Hide toolbar and toggle buttons
   toolbar.style.display = 'none';
@@ -684,7 +771,11 @@ document.addEventListener('keydown', async (e) => {
   }
   if (e.code === 'KeyS') {
     e.preventDefault();
-    await captureScreenshot(null, null);
+    await captureScreenshot(null, null, false);
+  }
+  if (e.code === 'KeyF') {
+    e.preventDefault();
+    await captureScreenshot(null, null, true);
   }
   if (e.code === 'KeyN') {
     e.preventDefault();
@@ -693,26 +784,35 @@ document.addEventListener('keydown', async (e) => {
   }
 });
 
-async function captureScreenshot(selector, note) {
+async function captureScreenshot(selector, note, fullPage = false) {
   try {
-    console.log('Capturing screenshot...', { selector, note });
+    console.log('Capturing screenshot...', { selector, note, fullPage });
 
-    // Capture the webview content
-    const image = await webview.capturePage();
-    const dataUrl = image.toDataURL();
+    let dataUrl;
+
+    if (fullPage) {
+      // Full page capture using scroll-and-stitch
+      dataUrl = await captureFullPage();
+    } else {
+      // Standard viewport capture
+      const image = await webview.capturePage();
+      dataUrl = image.toDataURL();
+    }
 
     console.log('Image captured, size:', dataUrl.length);
 
     const result = await window.electronAPI.captureScreenshot({
       selector,
       note,
+      fullPage,
       imageDataUrl: dataUrl
     });
 
     if (result.success) {
       const count = parseInt(screenshotCount.textContent) + 1;
       screenshotCount.textContent = count;
-      statusText.textContent = `Screenshot saved: ${result.filename}`;
+      const fullPageLabel = fullPage ? ' (full page)' : '';
+      statusText.textContent = `Screenshot saved: ${result.filename}${fullPageLabel}`;
 
       // Add to preview list
       addScreenshotPreview(result.filename, dataUrl, note);
@@ -724,6 +824,102 @@ async function captureScreenshot(selector, note) {
     console.error('Screenshot error:', error);
     statusText.textContent = `Screenshot error: ${error.message}`;
   }
+}
+
+/**
+ * Capture full page by scrolling and stitching screenshots
+ */
+async function captureFullPage() {
+  // Get page dimensions
+  const dimensions = await webview.executeJavaScript(`
+    (function() {
+      return {
+        scrollHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+        scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY
+      };
+    })()
+  `);
+
+  const { scrollHeight, viewportHeight, viewportWidth, scrollX, scrollY } = dimensions;
+
+  // If page fits in viewport, just capture normally
+  if (scrollHeight <= viewportHeight) {
+    const image = await webview.capturePage();
+    return image.toDataURL();
+  }
+
+  // Calculate number of captures needed
+  const numCaptures = Math.ceil(scrollHeight / viewportHeight);
+  const captures = [];
+
+  statusText.textContent = `Capturing full page (0/${numCaptures})...`;
+
+  // Capture each viewport section
+  for (let i = 0; i < numCaptures; i++) {
+    const scrollTo = i * viewportHeight;
+
+    // Scroll to position
+    await webview.executeJavaScript(`window.scrollTo(${scrollX}, ${scrollTo})`);
+
+    // Wait for scroll and render
+    await new Promise(r => setTimeout(r, 100));
+
+    // Capture this section
+    const image = await webview.capturePage();
+    const dataUrl = image.toDataURL();
+
+    // Calculate how much of this capture to use
+    const isLastCapture = i === numCaptures - 1;
+    const captureHeight = isLastCapture
+      ? scrollHeight - (i * viewportHeight)
+      : viewportHeight;
+
+    captures.push({
+      dataUrl,
+      y: scrollTo,
+      height: captureHeight,
+      isLast: isLastCapture
+    });
+
+    statusText.textContent = `Capturing full page (${i + 1}/${numCaptures})...`;
+  }
+
+  // Restore original scroll position
+  await webview.executeJavaScript(`window.scrollTo(${scrollX}, ${scrollY})`);
+
+  // Stitch images together using canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = viewportWidth;
+  canvas.height = scrollHeight;
+  const ctx = canvas.getContext('2d');
+
+  for (const capture of captures) {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = capture.dataUrl;
+    });
+
+    // For the last capture, we may need to offset from bottom
+    if (capture.isLast && capture.height < viewportHeight) {
+      // Draw only the visible portion from the bottom of the captured image
+      const sourceY = viewportHeight - capture.height;
+      ctx.drawImage(
+        img,
+        0, sourceY, viewportWidth, capture.height,
+        0, capture.y, viewportWidth, capture.height
+      );
+    } else {
+      ctx.drawImage(img, 0, capture.y);
+    }
+  }
+
+  return canvas.toDataURL('image/png');
 }
 
 function addScreenshotPreview(filename, dataUrl, note) {
@@ -776,6 +972,9 @@ function showNoteDialog(title = 'Add Note', withScreenshot = false) {
   saveNote.textContent = withScreenshot ? 'Save Screenshot' : 'Add Note';
   noteModal.style.display = 'flex';
   noteInput.focus();
+  // Initialize undo state for note input
+  noteUndoManager.clear();
+  pushUndoState(noteInput, noteUndoManager);
 }
 
 function hideNoteDialog() {
@@ -792,7 +991,7 @@ saveNote.addEventListener('click', async () => {
 
   if (isScreenshotWithNote) {
     // Screenshot with note
-    await captureScreenshot(pendingScreenshot?.selector || null, noteText || null);
+    await captureScreenshot(pendingScreenshot?.selector || null, noteText || null, pendingScreenshot?.fullPage || false);
   } else if (noteText) {
     // Standalone note
     await addStandaloneNote(noteText);
@@ -833,12 +1032,35 @@ noteInput.addEventListener('keydown', async (e) => {
   if (e.key === 'Escape') {
     hideNoteDialog();
   }
+  // Undo/Redo handling
+  if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    const state = noteUndoManager.undo();
+    restoreUndoState(noteInput, state);
+  }
+  if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+    e.preventDefault();
+    const state = noteUndoManager.redo();
+    restoreUndoState(noteInput, state);
+  }
+});
+
+// Debounced input handler for note undo tracking
+const debouncedNoteUndoPush = debounce(() => {
+  pushUndoState(noteInput, noteUndoManager);
+}, 300);
+
+noteInput.addEventListener('input', () => {
+  debouncedNoteUndoPush();
 });
 
 // Markdown toolbar
 mdToolbar.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-md]');
   if (!btn) return;
+
+  // Push state before toolbar modification for undo
+  pushUndoState(noteInput, noteUndoManager);
 
   const type = btn.dataset.md;
   const start = noteInput.selectionStart;
@@ -863,7 +1085,28 @@ mdToolbar.addEventListener('click', (e) => {
   noteInput.focus();
   noteInput.selectionStart = start + before.length;
   noteInput.selectionEnd = start + before.length + insert.length;
+
+  // Push state after toolbar modification for redo
+  pushUndoState(noteInput, noteUndoManager);
 });
+
+// Note toolbar undo/redo buttons
+const noteUndoBtn = document.getElementById('noteUndoBtn');
+const noteRedoBtn = document.getElementById('noteRedoBtn');
+
+if (noteUndoBtn) {
+  noteUndoBtn.addEventListener('click', () => {
+    const state = noteUndoManager.undo();
+    restoreUndoState(noteInput, state);
+  });
+}
+
+if (noteRedoBtn) {
+  noteRedoBtn.addEventListener('click', () => {
+    const state = noteUndoManager.redo();
+    restoreUndoState(noteInput, state);
+  });
+}
 
 // ===== Panel Buttons =====
 
@@ -878,7 +1121,17 @@ if (panelStopBtn) {
 if (panelScreenshotBtn) {
   panelScreenshotBtn.addEventListener('click', async () => {
     if (isRecording) {
-      await captureScreenshot(null, null);
+      await captureScreenshot(null, null, false);
+    }
+  });
+}
+
+// Full page screenshot button
+const panelFullPageBtn = document.getElementById('panelFullPageBtn');
+if (panelFullPageBtn) {
+  panelFullPageBtn.addEventListener('click', async () => {
+    if (isRecording) {
+      await captureScreenshot(null, null, true);
     }
   });
 }
@@ -1137,6 +1390,10 @@ async function openEditor(recordingId) {
     editorTitle.textContent = result.title || 'Untitled';
     editorStatus.textContent = '';
 
+    // Initialize undo state for editor
+    editorUndoManager.clear();
+    pushUndoState(editorTextarea, editorUndoManager);
+
     // Update preview
     updateEditorPreview();
 
@@ -1145,6 +1402,10 @@ async function openEditor(recordingId) {
     webview.classList.add('hidden');
     toolbar.style.display = 'none';
     editorPanel.style.display = 'flex';
+    toggleLogBtn.style.display = 'none';
+    toggleShortcutsBtn.style.display = 'none';
+    logPanel.style.display = 'none';
+    shortcutsPanel.classList.add('hidden');
 
     // Update history highlight
     updateHistoryHighlight();
@@ -1156,17 +1417,32 @@ async function openEditor(recordingId) {
   }
 }
 
+// Cache buster for forcing image reload after edits
+let imageCacheBuster = Date.now();
+
 // Configure marked with custom renderer for styling
 const markedRenderer = {
   image(token) {
     let src = token.href;
+    const filename = token.href; // Original href is the filename (e.g., "screenshots/screenshot-001.png")
     if (editorRecordingDir && !src.startsWith('http') && !src.startsWith('file://')) {
       src = 'file:///' + editorRecordingDir.replace(/\\/g, '/') + '/' + token.href;
     }
-    return `<img src="${src}" alt="${token.text || ''}" class="max-w-full rounded-lg my-4">`;
+    // Add cache buster to force reload after edits
+    src += '?t=' + imageCacheBuster;
+    // Wrap image in container with edit button overlay
+    return `
+      <div class="relative group inline-block my-4">
+        <img src="${src}" alt="${token.text || ''}" class="max-w-full rounded-lg" data-screenshot="${filename}">
+        <button class="absolute top-2 right-2 px-2 py-1 bg-slate-900/80 hover:bg-teal-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity" data-edit-screenshot="${filename}">
+          ✏️ Edit
+        </button>
+      </div>
+    `;
   },
   link(token) {
-    return `<a href="${token.href}" class="text-teal-400 hover:underline">${token.text}</a>`;
+    const text = token.tokens ? this.parser.parseInline(token.tokens) : token.text;
+    return `<a href="${token.href}" class="text-teal-400 hover:underline">${text}</a>`;
   },
   code(token) {
     return `<pre class="my-3 p-3 bg-slate-800 rounded-lg overflow-x-auto"><code>${token.text}</code></pre>`;
@@ -1183,10 +1459,12 @@ const markedRenderer = {
       5: 'text-sm font-semibold mt-3 mb-1',
       6: 'text-sm font-medium mt-2 mb-1'
     };
-    return `<h${token.depth} class="${styles[token.depth] || ''}">${token.text}</h${token.depth}>`;
+    const text = token.tokens ? this.parser.parseInline(token.tokens) : token.text;
+    return `<h${token.depth} class="${styles[token.depth] || ''}">${text}</h${token.depth}>`;
   },
   paragraph(token) {
-    return `<p class="mb-3">${token.text}</p>`;
+    const text = token.tokens ? this.parser.parseInline(token.tokens) : token.text;
+    return `<p class="mb-3">${text}</p>`;
   },
   list(token) {
     const type = token.ordered ? 'ol' : 'ul';
@@ -1195,6 +1473,12 @@ const markedRenderer = {
   },
   hr() {
     return '<hr class="border-slate-700 my-6">';
+  },
+  br() {
+    return '<br>';
+  },
+  space() {
+    return '';
   }
 };
 
@@ -1226,8 +1510,28 @@ function renderMarkdownWithFrontmatter(markdown) {
     frontmatterHtml = `<div class="mb-6 p-4 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm font-mono">${fields}</div>`;
   }
 
-  return frontmatterHtml + marked.parse(content);
+  // Preserve multiple blank lines by converting them to visible breaks
+  // Use a placeholder that won't interfere with markdown parsing
+  content = content.replace(/\n{3,}/g, (match) => {
+    const extraBreaks = match.length - 2;
+    return '\n\n' + '&blank;\n'.repeat(extraBreaks);
+  });
+
+  // Ensure images on their own lines are treated as separate paragraphs
+  // This must run after blank line handling to catch images after &blank; markers
+  content = content.replace(/\n(!\[)/g, '\n\n$1');
+
+  // Parse markdown first, then replace placeholders with <br>
+  let html = marked.parse(content);
+  html = html.replace(/&blank;/g, '<br>');
+
+  return frontmatterHtml + html;
 }
+
+// Debounced input handler for editor undo tracking
+const debouncedEditorUndoPush = debounce(() => {
+  pushUndoState(editorTextarea, editorUndoManager);
+}, 300);
 
 // Editor event handlers
 editorTextarea.addEventListener('input', () => {
@@ -1236,6 +1540,42 @@ editorTextarea.addEventListener('input', () => {
   // Show unsaved indicator
   const hasChanges = editorTextarea.value !== editorOriginalContent;
   editorStatus.textContent = hasChanges ? 'Unsaved changes' : '';
+
+  // Track changes for undo
+  debouncedEditorUndoPush();
+});
+
+// Editor undo/redo keyboard handler
+editorTextarea.addEventListener('keydown', (e) => {
+  // Undo: Ctrl+Z
+  if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    const state = editorUndoManager.undo();
+    restoreUndoState(editorTextarea, state, updateEditorPreview);
+    // Update unsaved indicator
+    const hasChanges = editorTextarea.value !== editorOriginalContent;
+    editorStatus.textContent = hasChanges ? 'Unsaved changes' : '';
+  }
+  // Redo: Ctrl+Y or Ctrl+Shift+Z
+  if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+    e.preventDefault();
+    const state = editorUndoManager.redo();
+    restoreUndoState(editorTextarea, state, updateEditorPreview);
+    // Update unsaved indicator
+    const hasChanges = editorTextarea.value !== editorOriginalContent;
+    editorStatus.textContent = hasChanges ? 'Unsaved changes' : '';
+  }
+});
+
+// Screenshot edit button click handler (delegated)
+editorPreview.addEventListener('click', (e) => {
+  const editBtn = e.target.closest('[data-edit-screenshot]');
+  if (editBtn && activeHistoryId) {
+    const screenshotPath = editBtn.dataset.editScreenshot;
+    // Extract just the filename from "screenshots/screenshot-001.png"
+    const filename = screenshotPath.includes('/') ? screenshotPath.split('/').pop() : screenshotPath;
+    openScreenshotEditor(activeHistoryId, filename);
+  }
 });
 
 editorBackBtn.addEventListener('click', () => {
@@ -1287,6 +1627,9 @@ if (editorMdToolbar) {
     const btn = e.target.closest('button[data-editor-md]');
     if (!btn) return;
 
+    // Push state before toolbar modification for undo
+    pushUndoState(editorTextarea, editorUndoManager);
+
     const type = btn.dataset.editorMd;
     const start = editorTextarea.selectionStart;
     const end = editorTextarea.selectionEnd;
@@ -1311,10 +1654,758 @@ if (editorMdToolbar) {
     editorTextarea.selectionStart = start + before.length;
     editorTextarea.selectionEnd = start + before.length + insert.length;
     updateEditorPreview();
+
+    // Push state after toolbar modification for redo
+    pushUndoState(editorTextarea, editorUndoManager);
+
+    // Update unsaved indicator
+    const hasChanges = editorTextarea.value !== editorOriginalContent;
+    editorStatus.textContent = hasChanges ? 'Unsaved changes' : '';
+  });
+}
+
+// Editor toolbar undo/redo buttons
+const editorUndoBtn = document.getElementById('editorUndoBtn');
+const editorRedoBtn = document.getElementById('editorRedoBtn');
+
+if (editorUndoBtn) {
+  editorUndoBtn.addEventListener('click', () => {
+    const state = editorUndoManager.undo();
+    restoreUndoState(editorTextarea, state, updateEditorPreview);
+    // Update unsaved indicator
+    const hasChanges = editorTextarea.value !== editorOriginalContent;
+    editorStatus.textContent = hasChanges ? 'Unsaved changes' : '';
+  });
+}
+
+if (editorRedoBtn) {
+  editorRedoBtn.addEventListener('click', () => {
+    const state = editorUndoManager.redo();
+    restoreUndoState(editorTextarea, state, updateEditorPreview);
+    // Update unsaved indicator
+    const hasChanges = editorTextarea.value !== editorOriginalContent;
+    editorStatus.textContent = hasChanges ? 'Unsaved changes' : '';
   });
 }
 
 // Keyboard shortcuts are now handled above in the screenshot button section
+
+// ===== Screenshot Editor =====
+
+const screenshotEditor = {
+  isOpen: false,
+  recordingId: null,
+  filename: null,
+  imagePath: null,
+  originalImage: null,
+  canvas: null,
+  ctx: null,
+  regions: [],       // blur/redact regions
+  annotations: [],   // arrows, circles, etc.
+  currentTool: 'blur',
+  isDrawing: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0,
+  strokeColor: '#ff0000',
+  strokeWidth: 3,
+  redactColor: '#000000',
+  calloutCounter: 1,
+  scale: 1,
+};
+
+// Screenshot editor DOM elements
+const screenshotEditorModal = document.getElementById('screenshotEditorModal');
+const editorCanvasEl = document.getElementById('editorCanvas');
+const editorCanvasContainer = document.getElementById('editorCanvasContainer');
+
+// Tool buttons
+const editorToolBlur = document.getElementById('editorToolBlur');
+const editorToolRedact = document.getElementById('editorToolRedact');
+const editorToolPixelate = document.getElementById('editorToolPixelate');
+const editorToolArrow = document.getElementById('editorToolArrow');
+const editorToolCircle = document.getElementById('editorToolCircle');
+const editorToolRect = document.getElementById('editorToolRect');
+const editorToolText = document.getElementById('editorToolText');
+const editorToolCallout = document.getElementById('editorToolCallout');
+
+// Controls - IDs must match index.html (prefixed with ss_ to avoid conflicts with markdown editor)
+const ssEditorColorInput = document.getElementById('editorColor');
+const ssEditorStrokeWidthSelect = document.getElementById('editorStrokeWidth');
+const ssEditorUndoBtn = document.getElementById('editorUndo');
+const ssEditorClearBtn = document.getElementById('editorClear');
+const ssEditorSaveBtn = document.getElementById('editorSave');
+const ssEditorCancelBtn = document.getElementById('editorCancel');
+
+// Text input modal
+const textInputModal = document.getElementById('textInputModal');
+const textInputField = document.getElementById('textInputField');
+const textInputSizeSelect = document.getElementById('textInputSize');
+const textInputCancelBtn = document.getElementById('textInputCancel');
+const textInputSaveBtn = document.getElementById('textInputSave');
+
+/**
+ * Open screenshot editor for a specific screenshot
+ */
+async function openScreenshotEditor(recordingId, filename) {
+  try {
+    // Get the full path to the screenshot and any existing edits
+    const result = await window.electronAPI.getScreenshotPath(recordingId, filename);
+    if (!result.success) {
+      statusText.textContent = result.error || 'Failed to load screenshot';
+      return;
+    }
+
+    screenshotEditor.recordingId = recordingId;
+    screenshotEditor.filename = filename;
+    screenshotEditor.imagePath = result.path;
+    // Load existing edits if any
+    screenshotEditor.regions = result.blurRegions || [];
+    screenshotEditor.annotations = result.annotations || [];
+    // Set callout counter to continue from existing callouts
+    const maxCallout = screenshotEditor.annotations
+      .filter(a => a.type === 'callout')
+      .reduce((max, a) => Math.max(max, a.number || 0), 0);
+    screenshotEditor.calloutCounter = maxCallout + 1;
+    screenshotEditor.currentTool = 'blur';
+    screenshotEditor.isOpen = true;
+
+    // Load the image
+    const img = new Image();
+    img.onload = () => {
+      screenshotEditor.originalImage = img;
+
+      // Set canvas size to image size
+      screenshotEditor.canvas = editorCanvasEl;
+      screenshotEditor.ctx = editorCanvasEl.getContext('2d');
+
+      editorCanvasEl.width = img.width;
+      editorCanvasEl.height = img.height;
+
+      // Calculate scale to fit in container
+      const container = editorCanvasContainer;
+      const maxWidth = container.clientWidth - 32;
+      const maxHeight = container.clientHeight - 32;
+      const scaleX = maxWidth / img.width;
+      const scaleY = maxHeight / img.height;
+      screenshotEditor.scale = Math.min(1, scaleX, scaleY);
+
+      // Set display size (scaled)
+      editorCanvasEl.style.width = (img.width * screenshotEditor.scale) + 'px';
+      editorCanvasEl.style.height = (img.height * screenshotEditor.scale) + 'px';
+
+      // Draw the image
+      redrawEditorCanvas();
+
+      // Update tool selection
+      updateEditorToolSelection();
+    };
+
+    img.onerror = () => {
+      statusText.textContent = 'Failed to load image';
+      screenshotEditor.isOpen = false;
+    };
+
+    // Load image with file:// protocol
+    img.src = 'file:///' + result.path.replace(/\\/g, '/');
+
+    // Show modal
+    screenshotEditorModal.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Error opening screenshot editor:', error);
+    statusText.textContent = `Error: ${error.message}`;
+  }
+}
+
+/**
+ * Close screenshot editor
+ */
+function closeScreenshotEditor() {
+  screenshotEditor.isOpen = false;
+  screenshotEditorModal.classList.add('hidden');
+}
+
+/**
+ * Redraw the canvas with image, regions, and annotations
+ */
+function redrawEditorCanvas() {
+  const { ctx, canvas, originalImage, regions, annotations } = screenshotEditor;
+  if (!ctx || !originalImage) return;
+
+  // Clear and draw original image
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(originalImage, 0, 0);
+
+  // Draw blur/redact region previews (actual blur applied on save)
+  for (const region of regions) {
+    drawRegionPreview(ctx, region);
+  }
+
+  // Draw annotations
+  for (const anno of annotations) {
+    drawAnnotation(ctx, anno);
+  }
+
+  // Draw current selection preview
+  if (screenshotEditor.isDrawing) {
+    drawCurrentSelection(ctx);
+  }
+}
+
+/**
+ * Draw a blur/redact region preview
+ */
+function drawRegionPreview(ctx, region) {
+  const { x, y, width, height, type, color } = region;
+
+  ctx.save();
+
+  if (type === 'redact') {
+    ctx.fillStyle = color || '#000000';
+    ctx.fillRect(x, y, width, height);
+  } else if (type === 'pixelate') {
+    // Draw pixelation preview (simplified grid pattern)
+    ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    const gridSize = 10;
+    for (let gx = x; gx < x + width; gx += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(gx, y);
+      ctx.lineTo(gx, y + height);
+      ctx.stroke();
+    }
+    for (let gy = y; gy < y + height; gy += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, gy);
+      ctx.lineTo(x + width, gy);
+      ctx.stroke();
+    }
+  } else {
+    // Blur preview (semi-transparent overlay)
+    ctx.fillStyle = 'rgba(200, 200, 200, 0.6)';
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, width, height);
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw an annotation
+ */
+function drawAnnotation(ctx, anno) {
+  ctx.save();
+
+  const color = anno.color || '#ff0000';
+  const strokeWidth = anno.strokeWidth || 3;
+
+  switch (anno.type) {
+    case 'arrow':
+      drawArrowShape(ctx, anno.x1, anno.y1, anno.x2, anno.y2, color, strokeWidth);
+      break;
+    case 'circle':
+      drawCircleShape(ctx, anno.cx, anno.cy, anno.radius, color, strokeWidth);
+      break;
+    case 'rectangle':
+      drawRectOutline(ctx, anno.x, anno.y, anno.width, anno.height, color, strokeWidth);
+      break;
+    case 'text':
+      drawTextShape(ctx, anno.x, anno.y, anno.text, color, anno.fontSize || 16);
+      break;
+    case 'callout':
+      drawCalloutShape(ctx, anno.x, anno.y, anno.number, color);
+      break;
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw an arrow
+ */
+function drawArrowShape(ctx, x1, y1, x2, y2, color, strokeWidth) {
+  const headLen = 15;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = strokeWidth;
+  ctx.lineCap = 'round';
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  // Arrowhead
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.stroke();
+}
+
+/**
+ * Draw a circle
+ */
+function drawCircleShape(ctx, cx, cy, radius, color, strokeWidth) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = strokeWidth;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+/**
+ * Draw a rectangle outline
+ */
+function drawRectOutline(ctx, x, y, width, height, color, strokeWidth) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = strokeWidth;
+  ctx.strokeRect(x, y, width, height);
+}
+
+/**
+ * Draw text with outline for readability
+ */
+function drawTextShape(ctx, x, y, text, color, fontSize) {
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+  ctx.textBaseline = 'top';
+
+  // White outline
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 3;
+  ctx.strokeText(text, x, y);
+
+  // Colored fill
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+/**
+ * Draw a numbered callout badge
+ */
+function drawCalloutShape(ctx, x, y, number, color) {
+  const radius = 14;
+
+  // Circle background
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Number
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 14px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(number), x, y);
+}
+
+/**
+ * Draw the current selection being drawn
+ */
+function drawCurrentSelection(ctx) {
+  const { currentTool, startX, startY, currentX, currentY, strokeColor, strokeWidth, redactColor } = screenshotEditor;
+
+  const x = Math.min(startX, currentX);
+  const y = Math.min(startY, currentY);
+  const width = Math.abs(currentX - startX);
+  const height = Math.abs(currentY - startY);
+
+  ctx.save();
+  ctx.setLineDash([5, 5]);
+
+  if (['blur', 'redact', 'pixelate'].includes(currentTool)) {
+    ctx.strokeStyle = currentTool === 'redact' ? redactColor : '#888';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, width, height);
+  } else if (currentTool === 'arrow') {
+    drawArrowShape(ctx, startX, startY, currentX, currentY, strokeColor, strokeWidth);
+  } else if (currentTool === 'circle') {
+    const cx = (startX + currentX) / 2;
+    const cy = (startY + currentY) / 2;
+    const radius = Math.sqrt(width * width + height * height) / 2;
+    drawCircleShape(ctx, cx, cy, radius, strokeColor, strokeWidth);
+  } else if (currentTool === 'rectangle') {
+    drawRectOutline(ctx, x, y, width, height, strokeColor, strokeWidth);
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Get canvas coordinates from mouse event
+ */
+function getCanvasCoords(e) {
+  const rect = editorCanvasEl.getBoundingClientRect();
+  const scale = screenshotEditor.scale;
+  return {
+    x: (e.clientX - rect.left) / scale,
+    y: (e.clientY - rect.top) / scale
+  };
+}
+
+/**
+ * Update tool button selection state
+ */
+function updateEditorToolSelection() {
+  const tools = [
+    editorToolBlur, editorToolRedact, editorToolPixelate,
+    editorToolArrow, editorToolCircle, editorToolRect,
+    editorToolText, editorToolCallout
+  ];
+
+  const toolNames = ['blur', 'redact', 'pixelate', 'arrow', 'circle', 'rectangle', 'text', 'callout'];
+
+  tools.forEach((btn, i) => {
+    if (btn) {
+      const isActive = toolNames[i] === screenshotEditor.currentTool;
+      btn.classList.toggle('active', isActive);
+    }
+  });
+}
+
+// Text input modal state
+let pendingTextPosition = null;
+
+function showTextInputModal() {
+  if (textInputField) textInputField.value = '';
+  if (textInputModal) {
+    textInputModal.classList.remove('hidden');
+    textInputField?.focus();
+  }
+}
+
+function hideTextInputModal() {
+  if (textInputModal) textInputModal.classList.add('hidden');
+  pendingTextPosition = null;
+}
+
+// Canvas event handlers
+if (editorCanvasEl) {
+  editorCanvasEl.addEventListener('mousedown', (e) => {
+    if (!screenshotEditor.isOpen) return;
+
+    const coords = getCanvasCoords(e);
+    screenshotEditor.startX = coords.x;
+    screenshotEditor.startY = coords.y;
+    screenshotEditor.currentX = coords.x;
+    screenshotEditor.currentY = coords.y;
+
+    // For text and callout, we just need a single click
+    if (screenshotEditor.currentTool === 'text') {
+      pendingTextPosition = { x: coords.x, y: coords.y };
+      showTextInputModal();
+      return;
+    }
+
+    if (screenshotEditor.currentTool === 'callout') {
+      screenshotEditor.annotations.push({
+        type: 'callout',
+        x: coords.x,
+        y: coords.y,
+        number: screenshotEditor.calloutCounter++,
+        color: screenshotEditor.strokeColor
+      });
+      redrawEditorCanvas();
+      return;
+    }
+
+    screenshotEditor.isDrawing = true;
+  });
+
+  editorCanvasEl.addEventListener('mousemove', (e) => {
+    if (!screenshotEditor.isDrawing) return;
+
+    const coords = getCanvasCoords(e);
+    screenshotEditor.currentX = coords.x;
+    screenshotEditor.currentY = coords.y;
+    redrawEditorCanvas();
+  });
+
+  editorCanvasEl.addEventListener('mouseup', (e) => {
+    if (!screenshotEditor.isDrawing) return;
+    screenshotEditor.isDrawing = false;
+
+    const coords = getCanvasCoords(e);
+    const { currentTool, startX, startY, strokeColor, strokeWidth, redactColor } = screenshotEditor;
+
+    const x = Math.min(startX, coords.x);
+    const y = Math.min(startY, coords.y);
+    const width = Math.abs(coords.x - startX);
+    const height = Math.abs(coords.y - startY);
+
+    // Ignore tiny selections
+    if (width < 5 && height < 5) {
+      redrawEditorCanvas();
+      return;
+    }
+
+    if (['blur', 'redact', 'pixelate'].includes(currentTool)) {
+      screenshotEditor.regions.push({
+        type: currentTool,
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.round(width),
+        height: Math.round(height),
+        color: currentTool === 'redact' ? redactColor : undefined
+      });
+    } else if (currentTool === 'arrow') {
+      screenshotEditor.annotations.push({
+        type: 'arrow',
+        x1: Math.round(startX),
+        y1: Math.round(startY),
+        x2: Math.round(coords.x),
+        y2: Math.round(coords.y),
+        color: strokeColor,
+        strokeWidth: strokeWidth
+      });
+    } else if (currentTool === 'circle') {
+      const cx = (startX + coords.x) / 2;
+      const cy = (startY + coords.y) / 2;
+      const radius = Math.sqrt(width * width + height * height) / 2;
+      screenshotEditor.annotations.push({
+        type: 'circle',
+        cx: Math.round(cx),
+        cy: Math.round(cy),
+        radius: Math.round(radius),
+        color: strokeColor,
+        strokeWidth: strokeWidth
+      });
+    } else if (currentTool === 'rectangle') {
+      screenshotEditor.annotations.push({
+        type: 'rectangle',
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.round(width),
+        height: Math.round(height),
+        color: strokeColor,
+        strokeWidth: strokeWidth
+      });
+    }
+
+    redrawEditorCanvas();
+  });
+
+  editorCanvasEl.addEventListener('mouseleave', () => {
+    if (screenshotEditor.isDrawing) {
+      screenshotEditor.isDrawing = false;
+      redrawEditorCanvas();
+    }
+  });
+}
+
+// Tool button handlers
+const toolButtons = [
+  [editorToolBlur, 'blur'],
+  [editorToolRedact, 'redact'],
+  [editorToolPixelate, 'pixelate'],
+  [editorToolArrow, 'arrow'],
+  [editorToolCircle, 'circle'],
+  [editorToolRect, 'rectangle'],
+  [editorToolText, 'text'],
+  [editorToolCallout, 'callout']
+];
+
+toolButtons.forEach(([btn, tool]) => {
+  if (btn) {
+    btn.addEventListener('click', () => {
+      screenshotEditor.currentTool = tool;
+      updateEditorToolSelection();
+    });
+  }
+});
+
+// Color and stroke controls
+if (ssEditorColorInput) {
+  ssEditorColorInput.addEventListener('input', (e) => {
+    screenshotEditor.strokeColor = e.target.value;
+  });
+}
+
+if (ssEditorStrokeWidthSelect) {
+  ssEditorStrokeWidthSelect.addEventListener('change', (e) => {
+    screenshotEditor.strokeWidth = parseInt(e.target.value) || 3;
+  });
+}
+
+// Undo button
+if (ssEditorUndoBtn) {
+  ssEditorUndoBtn.addEventListener('click', () => {
+    // Remove last item (either region or annotation)
+    const lastAnno = screenshotEditor.annotations.length > 0 ? screenshotEditor.annotations[screenshotEditor.annotations.length - 1] : null;
+
+    // Simple undo: prefer removing from whichever array has items
+    if (screenshotEditor.annotations.length > 0 && screenshotEditor.annotations.length >= screenshotEditor.regions.length) {
+      screenshotEditor.annotations.pop();
+      // Decrement callout counter if we removed a callout
+      if (lastAnno && lastAnno.type === 'callout') {
+        screenshotEditor.calloutCounter = Math.max(1, screenshotEditor.calloutCounter - 1);
+      }
+    } else if (screenshotEditor.regions.length > 0) {
+      screenshotEditor.regions.pop();
+    }
+
+    redrawEditorCanvas();
+  });
+}
+
+// Clear button
+if (ssEditorClearBtn) {
+  ssEditorClearBtn.addEventListener('click', () => {
+    if (confirm('Clear all edits?')) {
+      screenshotEditor.regions = [];
+      screenshotEditor.annotations = [];
+      screenshotEditor.calloutCounter = 1;
+      redrawEditorCanvas();
+    }
+  });
+}
+
+// Reset to Original button
+const ssEditorResetBtn = document.getElementById('editorReset');
+if (ssEditorResetBtn) {
+  ssEditorResetBtn.addEventListener('click', async () => {
+    if (!confirm('Reset to original? This will permanently remove all saved edits for this screenshot.')) {
+      return;
+    }
+
+    try {
+      statusText.textContent = 'Resetting to original...';
+
+      const result = await window.electronAPI.resetScreenshotToOriginal({
+        recordingId: screenshotEditor.recordingId,
+        filename: screenshotEditor.filename
+      });
+
+      if (result.success) {
+        // Clear local state
+        screenshotEditor.regions = [];
+        screenshotEditor.annotations = [];
+        screenshotEditor.calloutCounter = 1;
+
+        // Reload the image
+        const img = new Image();
+        img.onload = () => {
+          screenshotEditor.originalImage = img;
+          redrawEditorCanvas();
+          statusText.textContent = 'Reset to original successfully';
+        };
+        img.onerror = () => {
+          statusText.textContent = 'Failed to reload image';
+        };
+        // Add cache buster to force reload
+        img.src = 'file:///' + screenshotEditor.imagePath.replace(/\\/g, '/') + '?t=' + Date.now();
+
+        // Update cache buster for markdown preview
+        imageCacheBuster = Date.now();
+      } else {
+        statusText.textContent = result.error || 'Failed to reset';
+      }
+    } catch (error) {
+      console.error('Error resetting screenshot:', error);
+      statusText.textContent = `Error: ${error.message}`;
+    }
+  });
+}
+
+// Cancel button
+if (ssEditorCancelBtn) {
+  ssEditorCancelBtn.addEventListener('click', () => {
+    const hasEdits = screenshotEditor.regions.length > 0 || screenshotEditor.annotations.length > 0;
+    if (hasEdits && !confirm('Discard all edits?')) {
+      return;
+    }
+    closeScreenshotEditor();
+  });
+}
+
+// Save button
+if (ssEditorSaveBtn) {
+  ssEditorSaveBtn.addEventListener('click', async () => {
+    try {
+      statusText.textContent = 'Saving edits...';
+
+      const result = await window.electronAPI.saveScreenshotEdits({
+        recordingId: screenshotEditor.recordingId,
+        filename: screenshotEditor.filename,
+        blurRegions: screenshotEditor.regions,
+        annotations: screenshotEditor.annotations
+      });
+
+      if (result.success) {
+        statusText.textContent = 'Screenshot edits saved';
+        closeScreenshotEditor();
+
+        // Update cache buster to force image reload
+        imageCacheBuster = Date.now();
+
+        // Refresh the editor preview if viewing this recording
+        if (activeHistoryId === screenshotEditor.recordingId) {
+          await openEditor(screenshotEditor.recordingId);
+        }
+      } else {
+        statusText.textContent = result.error || 'Failed to save edits';
+      }
+    } catch (error) {
+      console.error('Error saving screenshot edits:', error);
+      statusText.textContent = `Error: ${error.message}`;
+    }
+  });
+}
+
+// Text input modal handlers
+if (textInputCancelBtn) {
+  textInputCancelBtn.addEventListener('click', hideTextInputModal);
+}
+
+if (textInputSaveBtn) {
+  textInputSaveBtn.addEventListener('click', () => {
+    const text = textInputField?.value?.trim();
+    const fontSize = parseInt(textInputSizeSelect?.value) || 18;
+    if (text && pendingTextPosition) {
+      screenshotEditor.annotations.push({
+        type: 'text',
+        x: Math.round(pendingTextPosition.x),
+        y: Math.round(pendingTextPosition.y),
+        text: text,
+        color: screenshotEditor.strokeColor,
+        fontSize: fontSize
+      });
+      redrawEditorCanvas();
+    }
+    hideTextInputModal();
+  });
+}
+
+if (textInputField) {
+  textInputField.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      textInputSaveBtn?.click();
+    }
+    if (e.key === 'Escape') {
+      hideTextInputModal();
+    }
+  });
+}
+
+// Escape key to close editor
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && screenshotEditor.isOpen && textInputModal && !textInputModal.classList.contains('hidden')) {
+    hideTextInputModal();
+  } else if (e.key === 'Escape' && screenshotEditor.isOpen) {
+    ssEditorCancelBtn?.click();
+  }
+});
 
 // ===== Initialize =====
 

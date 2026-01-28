@@ -1,11 +1,29 @@
 /**
  * Refetch screenshots from a recording.
  * Replays goto and screenshot actions only, skipping click/fill.
+ * Preserves and reapplies any blur regions or annotations from the original recording.
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { generateMarkdown } = require('./markdown-generator');
+
+// Lazy load blur processor and annotation renderer (require sharp)
+function getBlurProcessor() {
+  try {
+    return require('./blur-processor');
+  } catch {
+    return null;
+  }
+}
+
+function getAnnotationRenderer() {
+  try {
+    return require('./annotation-renderer');
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Refetch screenshots for a recording.
@@ -100,8 +118,38 @@ async function refetchScreenshots(recordingDir, options = {}) {
         // Take screenshot
         const screenshotPath = path.join(screenshotsDir, action.filename);
         try {
-          await page.screenshot({ path: screenshotPath });
+          await page.screenshot({ path: screenshotPath, fullPage: action.fullPage || false });
           screenshotCount++;
+
+          // Reapply blur regions if present in the action
+          if (action.blurRegions && action.blurRegions.length > 0) {
+            const blurProcessor = getBlurProcessor();
+            if (blurProcessor) {
+              try {
+                await blurProcessor.applyBlurRegions(screenshotPath, action.blurRegions, {
+                  outputPath: screenshotPath
+                });
+                console.log(`  Applied ${action.blurRegions.length} blur region(s) to ${action.filename}`);
+              } catch (err) {
+                console.warn(`  Failed to apply blur regions to ${action.filename}: ${err.message}`);
+              }
+            }
+          }
+
+          // Reapply annotations if present in the action
+          if (action.annotations && action.annotations.length > 0) {
+            const annotationRenderer = getAnnotationRenderer();
+            if (annotationRenderer) {
+              try {
+                await annotationRenderer.renderAnnotations(screenshotPath, action.annotations, {
+                  outputPath: screenshotPath
+                });
+                console.log(`  Applied ${action.annotations.length} annotation(s) to ${action.filename}`);
+              } catch (err) {
+                console.warn(`  Failed to apply annotations to ${action.filename}: ${err.message}`);
+              }
+            }
+          }
         } catch (error) {
           console.error(`Failed to take screenshot ${action.filename}: ${error.message}`);
         }

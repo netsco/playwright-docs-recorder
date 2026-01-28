@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./ipc-handlers');
 const { initSettingsStore, getSettingsStore } = require('./settings-store');
@@ -54,6 +54,7 @@ if (!gotTheLock) {
     initSettingsStore();
     registerIpcHandlers();
     createWindow();
+    Menu.setApplicationMenu(null);
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

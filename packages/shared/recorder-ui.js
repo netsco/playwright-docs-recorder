@@ -16,11 +16,13 @@ function getLegendHTML() {
       <div><kbd>Ctrl+Hover</kbd> Preview</div>
       <div><kbd>Ctrl+Click</kbd> Lock highlight</div>
       <div><kbd>Ctrl+Shift+S</kbd> Screenshot</div>
+      <div><kbd>Ctrl+Shift+F</kbd> Full page</div>
       <div><kbd>Ctrl+Shift+K</kbd> + note</div>
       <div><kbd>Ctrl+Shift+X</kbd> Clear</div>
     </div>
-    <div id="__legend-buttons" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.3);padding-top:8px;display:flex;gap:6px;">
+    <div id="__legend-buttons" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.3);padding-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
       <button id="__btn-screenshot" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">📷</button>
+      <button id="__btn-fullpage" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">📄 Full</button>
       <button id="__btn-note" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">📝 Note</button>
       <button id="__btn-clear" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">✖ Clear</button>
     </div>

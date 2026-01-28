@@ -110,7 +110,7 @@ function registerIpcHandlers() {
 
   // ===== Screenshot Capture =====
 
-  ipcMain.handle('capture-screenshot', async (event, { selector, note, imageDataUrl }) => {
+  ipcMain.handle('capture-screenshot', async (event, { selector, note, fullPage = false, imageDataUrl }) => {
     if (!currentRecording) {
       return { success: false, error: 'No recording in progress' };
     }
@@ -129,11 +129,16 @@ function registerIpcHandlers() {
 
       const filepath = saveScreenshot(screenshotsDir, filename, imageBuffer);
 
-      const screenshotData = { filename, highlight: selector, note };
+      const screenshotData = { filename, highlight: selector, note, fullPage };
       currentRecording.screenshots.push(screenshotData);
-      currentRecording.actions.push({ type: 'screenshot', ...screenshotData });
+      const action = { type: 'screenshot', ...screenshotData };
+      currentRecording.actions.push(action);
 
-      console.log(`Screenshot: ${filename}${selector ? ` [${selector}]` : ''}${note ? ` - ${note}` : ''}`);
+      // Notify renderer of the new action (for log panel)
+      event.sender.send('action-recorded', action);
+
+      const fullPageLabel = fullPage ? ' [full page]' : '';
+      console.log(`Screenshot: ${filename}${fullPageLabel}${selector ? ` [${selector}]` : ''}${note ? ` - ${note}` : ''}`);
 
       return { success: true, filename, filepath };
     } catch (error) {
@@ -279,6 +284,187 @@ function registerIpcHandlers() {
       return { success: true };
     } catch (error) {
       console.error('Failed to regenerate markdown:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ===== Screenshot Editor =====
+
+  ipcMain.handle('get-screenshot-path', (event, recordingId, filename) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const screenshotPath = path.join(outputDir, recordingId, 'screenshots', filename);
+    const actionsPath = path.join(outputDir, recordingId, 'actions.json');
+    const fs = require('fs');
+
+    if (!fs.existsSync(screenshotPath)) {
+      return { success: false, error: 'Screenshot not found' };
+    }
+
+    // Load existing edits from actions.json
+    let blurRegions = [];
+    let annotations = [];
+    try {
+      if (fs.existsSync(actionsPath)) {
+        const actionsData = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+        const actions = actionsData.actions || actionsData;
+        const screenshotAction = actions.find(
+          a => a.type === 'screenshot' && a.filename === filename
+        );
+        if (screenshotAction) {
+          blurRegions = screenshotAction.blurRegions || [];
+          annotations = screenshotAction.annotations || [];
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load existing edits:', err.message);
+    }
+
+    return { success: true, path: screenshotPath, blurRegions, annotations };
+  });
+
+  ipcMain.handle('save-screenshot-edits', async (event, { recordingId, filename, blurRegions, annotations }) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const recordingDir = path.join(outputDir, recordingId);
+    const screenshotsDir = path.join(recordingDir, 'screenshots');
+    const originalsDir = path.join(recordingDir, 'screenshots-original');
+    const screenshotPath = path.join(screenshotsDir, filename);
+    const originalPath = path.join(originalsDir, filename);
+    const actionsPath = path.join(recordingDir, 'actions.json');
+    const fs = require('fs');
+
+    try {
+      // Load actions.json
+      if (!fs.existsSync(actionsPath)) {
+        return { success: false, error: 'actions.json not found' };
+      }
+
+      const actionsData = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+      const actions = actionsData.actions || actionsData;
+
+      // Find the screenshot action
+      const screenshotAction = actions.find(
+        a => a.type === 'screenshot' && a.filename === filename
+      );
+
+      if (!screenshotAction) {
+        return { success: false, error: 'Screenshot not found in actions' };
+      }
+
+      // Backup original on first edit (non-destructive editing)
+      const hasAnyEdits = (blurRegions && blurRegions.length > 0) || (annotations && annotations.length > 0);
+      if (hasAnyEdits && !fs.existsSync(originalPath)) {
+        fs.mkdirSync(originalsDir, { recursive: true });
+        fs.copyFileSync(screenshotPath, originalPath);
+        console.log(`Backed up original: ${filename}`);
+      }
+
+      // Update the action with blur regions and annotations
+      if (blurRegions && blurRegions.length > 0) {
+        screenshotAction.blurRegions = blurRegions;
+        screenshotAction.hasEdits = true;
+      } else {
+        delete screenshotAction.blurRegions;
+      }
+
+      if (annotations && annotations.length > 0) {
+        screenshotAction.annotations = annotations;
+        screenshotAction.hasEdits = true;
+      } else {
+        delete screenshotAction.annotations;
+      }
+
+      // Update hasEdits flag
+      if (!hasAnyEdits) {
+        delete screenshotAction.hasEdits;
+      }
+
+      // Save updated actions.json
+      fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
+
+      // Determine source image: use original if it exists, otherwise use screenshot
+      const sourcePath = fs.existsSync(originalPath) ? originalPath : screenshotPath;
+
+      // Apply blur regions using sharp (if any)
+      if (blurRegions && blurRegions.length > 0) {
+        try {
+          const { applyBlurRegions } = require('@doc-recorder/shared');
+          await applyBlurRegions(sourcePath, blurRegions, { outputPath: screenshotPath });
+        } catch (blurError) {
+          console.warn('Failed to apply blur regions (sharp may not be installed):', blurError.message);
+          // Continue - the blur regions are saved in actions.json for later processing
+        }
+      }
+
+      // Apply annotations using sharp (if any) - apply after blur
+      if (annotations && annotations.length > 0) {
+        try {
+          const { renderAnnotations } = require('@doc-recorder/shared');
+          // If blur was applied, annotations go on top of the blurred image
+          // If no blur, annotations are applied to the source (original or screenshot)
+          const annoSource = (blurRegions && blurRegions.length > 0) ? screenshotPath : sourcePath;
+          await renderAnnotations(annoSource, annotations, { outputPath: screenshotPath });
+        } catch (annoError) {
+          console.warn('Failed to render annotations (sharp may not be installed):', annoError.message);
+          // Continue - the annotations are saved in actions.json for later processing
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to save screenshot edits:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Reset screenshot to original (remove all edits)
+  ipcMain.handle('reset-screenshot-to-original', async (event, { recordingId, filename }) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const recordingDir = path.join(outputDir, recordingId);
+    const screenshotsDir = path.join(recordingDir, 'screenshots');
+    const originalsDir = path.join(recordingDir, 'screenshots-original');
+    const screenshotPath = path.join(screenshotsDir, filename);
+    const originalPath = path.join(originalsDir, filename);
+    const actionsPath = path.join(recordingDir, 'actions.json');
+    const fs = require('fs');
+
+    try {
+      // Load actions.json
+      if (!fs.existsSync(actionsPath)) {
+        return { success: false, error: 'actions.json not found' };
+      }
+
+      const actionsData = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+      const actions = actionsData.actions || actionsData;
+
+      // Find the screenshot action
+      const screenshotAction = actions.find(
+        a => a.type === 'screenshot' && a.filename === filename
+      );
+
+      if (!screenshotAction) {
+        return { success: false, error: 'Screenshot not found in actions' };
+      }
+
+      // Clear edits from actions.json
+      delete screenshotAction.blurRegions;
+      delete screenshotAction.annotations;
+      delete screenshotAction.hasEdits;
+
+      // Save updated actions.json
+      fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
+
+      // Restore original image if it exists
+      if (fs.existsSync(originalPath)) {
+        fs.copyFileSync(originalPath, screenshotPath);
+        console.log(`Restored original: ${filename}`);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to reset screenshot:', error);
       return { success: false, error: error.message };
     }
   });
