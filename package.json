@@ -1,14 +1,15 @@
 {
-  "name": "playwright-doc-recorder",
-  "version": "1.0.0",
+  "name": "doc-recorder",
+  "version": "2.0.0",
   "description": "Record browser actions with on-demand screenshots and element highlighting for documentation",
   "license": "MIT",
-  "main": "recorder.js",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "record": "node recorder.js",
-    "replay": "node doc-output/recorded-script.js"
-  },
-  "dependencies": {
-    "playwright": "^1.40.0"
+    "record": "node packages/cli/index.js",
+    "desktop": "npm run dev -w @doc-recorder/desktop",
+    "desktop:build": "npm run build -w @doc-recorder/desktop"
   }
 }

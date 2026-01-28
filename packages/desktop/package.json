@@ -1,7 +1,7 @@
 {
-  "name": "documentation-recorder",
+  "name": "@doc-recorder/desktop",
   "version": "2.0.0",
-  "description": "Record browser interactions with screenshots for documentation",
+  "description": "Desktop app for recording browser interactions with screenshots for documentation",
   "main": "src/main/main.js",
   "scripts": {
     "css:build": "npx @tailwindcss/cli -i ./src/renderer/styles/input.css -o ./src/renderer/styles/output.css",
@@ -16,6 +16,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@doc-recorder/shared": "1.0.0",
     "electron-store": "^8.1.0"
   },
   "devDependencies": {

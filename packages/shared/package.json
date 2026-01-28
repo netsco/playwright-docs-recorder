@@ -1,0 +1,13 @@
+{
+  "name": "@doc-recorder/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for Documentation Recorder",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./script-generator": "./script-generator.js",
+    "./markdown-generator": "./markdown-generator.js"
+  },
+  "keywords": ["playwright", "documentation", "recorder"],
+  "license": "MIT"
+}
