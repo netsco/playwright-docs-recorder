@@ -1,0 +1,11 @@
+/* Minimal overrides - Tailwind handles most styling via index.html */
+
+/* Status bar link styling */
+#statusText a {
+  color: #14b8a6;
+  text-decoration: none;
+}
+
+#statusText a:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,29 @@
+{
+  "name": "documentation-recorder",
+  "version": "2.0.0",
+  "description": "Record browser interactions with screenshots for documentation",
+  "main": "src/main/main.js",
+  "scripts": {
+    "css:build": "npx @tailwindcss/cli -i ./src/renderer/styles/input.css -o ./src/renderer/styles/output.css",
+    "css:watch": "npx @tailwindcss/cli -i ./src/renderer/styles/input.css -o ./src/renderer/styles/output.css --watch",
+    "start": "npm run css:build && electron .",
+    "dev": "npm run css:build && electron . --dev",
+    "build": "npm run css:build && electron-builder",
+    "build:win": "npm run css:build && electron-builder --win --x64",
+    "build:portable": "npm run css:build && electron-builder --win portable",
+    "pack": "npm run css:build && electron-builder --dir"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.18",
+    "autoprefixer": "^10.4.23",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18"
+  }
+}

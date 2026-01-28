@@ -1,0 +1,22 @@
+appId: com.docrecorder.app
+productName: Documentation Recorder
+
+directories:
+  output: dist
+
+files:
+  - src/**/*
+  - "!**/*.map"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md}"
+
+win:
+  target:
+    - target: portable
+      arch: x64
+
+portable:
+  artifactName: DocRecorder-Portable-${version}.exe
+  requestExecutionLevel: user
+
+asar: true
+compression: maximum
