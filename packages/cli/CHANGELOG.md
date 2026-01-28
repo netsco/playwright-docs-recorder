@@ -1,5 +1,14 @@
 # @doc-recorder/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- Add custom CSS injection to hide cookie banners, popups, and other elements during recording.
+
+  CLI: New `-c, --css` and `-cf, --css-file` options for inline CSS or file-based injection.
+  Desktop: New "Inject custom CSS" checkbox toggle with textarea and "Load from file" button.
+
 ## 0.2.0
 
 ### Minor Changes

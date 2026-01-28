@@ -5,6 +5,7 @@ let isRecording = false;
 let highlighted = null;
 let isCtrlHeld = false;
 let hoverHighlighted = null; // Temporary highlight during Ctrl+hover
+let injectedCustomCSS = null; // Custom CSS to inject
 
 // Listen for recording state changes from renderer
 ipcRenderer.on('recording-started', () => {
@@ -41,6 +42,41 @@ ipcRenderer.on('take-screenshot', (event, { withNote }) => {
     ipcRenderer.sendToHost('request-screenshot', { selector, note: null, withNote: false });
   }
 });
+
+// Listen for custom CSS injection from renderer
+ipcRenderer.on('inject-custom-css', (event, css) => {
+  if (!css) return;
+  injectedCustomCSS = css;
+  injectCustomCSSToPage(css);
+  console.log('[DocRecorder] Custom CSS injected');
+});
+
+/**
+ * Inject custom CSS into the page
+ */
+function injectCustomCSSToPage(css) {
+  if (!css) return;
+
+  // Remove existing custom CSS if present
+  let style = document.getElementById('__doc-recorder-custom-css');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = '__doc-recorder-custom-css';
+    if (document.head) {
+      document.head.appendChild(style);
+    } else {
+      // Wait for head to be available
+      const observer = new MutationObserver(() => {
+        if (document.head) {
+          observer.disconnect();
+          document.head.appendChild(style);
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
+  style.textContent = css;
+}
 
 // ===== Selector Generation =====
 
@@ -97,6 +133,11 @@ function getSelector(el) {
 function injectRecorderUI() {
   if (window.__docRecorderInjected) return;
   window.__docRecorderInjected = true;
+
+  // Re-inject custom CSS if it was set
+  if (injectedCustomCSS) {
+    injectCustomCSSToPage(injectedCustomCSS);
+  }
 
   // Highlight overlay (permanent selection)
   const overlay = document.createElement('div');
@@ -291,6 +332,10 @@ window.addEventListener('DOMContentLoaded', () => {
 const observer = new MutationObserver(() => {
   if (!document.getElementById('__highlight-overlay')) {
     injectRecorderUI();
+  }
+  // Re-inject CSS if it was removed
+  if (injectedCustomCSS && !document.getElementById('__doc-recorder-custom-css')) {
+    injectCustomCSSToPage(injectedCustomCSS);
   }
 });
 

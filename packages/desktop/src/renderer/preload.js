@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   selectOutputDir: () => ipcRenderer.invoke('select-output-dir'),
+  selectCssFile: () => ipcRenderer.invoke('select-css-file'),
 
   // Event listeners
   onActionRecorded: (callback) => {

@@ -45,6 +45,8 @@ node generate-recording.js <actions.json> [options]
 | `-t, --title <title>` | Document title | none |
 | `-s, --separator <sep>` | Screenshot separator | `---` |
 | `--screenshots-only` | Skip recording clicks/fills | false |
+| `-c, --css <css>` | Custom CSS to inject (hide elements) | none |
+| `-cf, --css-file <path>` | Path to CSS file to inject | none |
 | `--refetch <dir>` | Refetch screenshots from recording | - |
 
 ### Video Generation Options
@@ -119,6 +121,7 @@ src/
 Desktop-specific features:
 - Viewport presets (HD, Full HD, Mobile, Tablet, Custom)
 - Screenshots-only mode with credentials warning
+- Custom CSS injection (hide cookie banners, popups, etc.)
 - Refetch screenshots from existing recordings
 - Draggable recorder panel (constrained to viewport)
 - "+" button to start new recording (hidden during active recording)

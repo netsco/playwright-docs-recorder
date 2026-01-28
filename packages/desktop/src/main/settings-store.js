@@ -24,7 +24,9 @@ function initSettingsStore() {
       windowBounds: { width: 1400, height: 900 },
       separator: '---',
       showLog: false,
-      showShortcuts: true
+      showShortcuts: true,
+      injectCSS: false,
+      customCSS: ''
     }
   });
   return store;

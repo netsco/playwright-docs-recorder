@@ -1,3 +1,5 @@
+/* global marked */
+
 // DOM Elements
 const historyList = document.getElementById('historyList');
 const webview = document.getElementById('webview');
@@ -40,6 +42,10 @@ const customViewportInputs = document.getElementById('customViewportInputs');
 const welcomeViewportWidth = document.getElementById('welcomeViewportWidth');
 const welcomeViewportHeight = document.getElementById('welcomeViewportHeight');
 const welcomeSeparator = document.getElementById('welcomeSeparator');
+const welcomeInjectCSS = document.getElementById('welcomeInjectCSS');
+const welcomeCSSOptions = document.getElementById('welcomeCSSOptions');
+const welcomeCustomCSS = document.getElementById('welcomeCustomCSS');
+const welcomeLoadCssFile = document.getElementById('welcomeLoadCssFile');
 const welcomeRecordActions = document.getElementById('welcomeRecordActions');
 const welcomeStartBtn = document.getElementById('welcomeStartBtn');
 
@@ -127,6 +133,11 @@ function populateWelcomePanel() {
     welcomeViewportWidth.value = currentSettings.viewport?.width || 1280;
     welcomeViewportHeight.value = currentSettings.viewport?.height || 720;
     welcomeSeparator.value = currentSettings.separator || '---';
+
+    // CSS injection settings
+    welcomeInjectCSS.checked = currentSettings.injectCSS || false;
+    welcomeCustomCSS.value = currentSettings.customCSS || '';
+    welcomeCSSOptions.style.display = welcomeInjectCSS.checked ? 'block' : 'none';
 
     // Populate recent URLs datalist
     populateWelcomeRecentUrls();
@@ -406,6 +417,19 @@ welcomeViewportPreset.addEventListener('change', () => {
   }
 });
 
+// CSS injection checkbox toggle
+welcomeInjectCSS.addEventListener('change', () => {
+  welcomeCSSOptions.style.display = welcomeInjectCSS.checked ? 'block' : 'none';
+});
+
+// Load CSS from file
+welcomeLoadCssFile.addEventListener('click', async () => {
+  const result = await window.electronAPI.selectCssFile();
+  if (result.success) {
+    welcomeCustomCSS.value = result.content;
+  }
+});
+
 welcomeStartBtn.addEventListener('click', async () => {
   await startFromWelcomePanel();
 });
@@ -446,6 +470,10 @@ async function startFromWelcomePanel() {
   // Get record actions preference
   const recordActions = welcomeRecordActions.checked;
 
+  // Get CSS injection settings
+  const injectCSS = welcomeInjectCSS.checked;
+  const customCSS = injectCSS ? welcomeCustomCSS.value.trim() : '';
+
   // Update settings if output dir changed
   if (welcomeOutputDir.value && welcomeOutputDir.value !== currentSettings.outputDir) {
     await window.electronAPI.saveSettings({ outputDir: welcomeOutputDir.value });
@@ -455,6 +483,16 @@ async function startFromWelcomePanel() {
   // Save separator setting
   await window.electronAPI.saveSettings({ separator });
   currentSettings.separator = separator;
+
+  // Save CSS injection settings
+  if (injectCSS !== currentSettings.injectCSS) {
+    await window.electronAPI.saveSettings({ injectCSS });
+    currentSettings.injectCSS = injectCSS;
+  }
+  if (customCSS !== currentSettings.customCSS) {
+    await window.electronAPI.saveSettings({ customCSS });
+    currentSettings.customCSS = customCSS;
+  }
 
   // Hide welcome panel and show webview
   welcomePanel.style.display = 'none';
@@ -473,7 +511,7 @@ async function startFromWelcomePanel() {
   // Wait for page to load, then start recording
   webview.addEventListener('did-stop-loading', async function onLoad() {
     webview.removeEventListener('did-stop-loading', onLoad);
-    await startRecording(url, title, viewport, separator, recordActions);
+    await startRecording(url, title, viewport, separator, recordActions, customCSS);
   }, { once: true });
 }
 
@@ -505,12 +543,13 @@ function showWelcomePanel() {
 }
 
 
-async function startRecording(url, title, viewport, separator, recordActions = true) {
+async function startRecording(url, title, viewport, separator, recordActions = true, customCSS = '') {
   const result = await window.electronAPI.startRecording(url || webview.src, {
     title: title || null,
     viewport: viewport || currentSettings.viewport,
     separator: separator !== undefined ? separator : currentSettings.separator,
-    recordActions: recordActions
+    recordActions: recordActions,
+    customCSS: customCSS || null
   });
 
   if (result.success) {
@@ -567,6 +606,11 @@ async function startRecording(url, title, viewport, separator, recordActions = t
 
     // Notify webview that recording started (with recordActions preference)
     webview.send('recording-started', { recordActions });
+
+    // Inject custom CSS if enabled
+    if (customCSS) {
+      webview.send('inject-custom-css', customCSS);
+    }
   }
 }
 
@@ -1112,15 +1156,58 @@ async function openEditor(recordingId) {
   }
 }
 
+// Configure marked with custom renderer for styling
+const markedRenderer = {
+  image(token) {
+    let src = token.href;
+    if (editorRecordingDir && !src.startsWith('http') && !src.startsWith('file://')) {
+      src = 'file:///' + editorRecordingDir.replace(/\\/g, '/') + '/' + token.href;
+    }
+    return `<img src="${src}" alt="${token.text || ''}" class="max-w-full rounded-lg my-4">`;
+  },
+  link(token) {
+    return `<a href="${token.href}" class="text-teal-400 hover:underline">${token.text}</a>`;
+  },
+  code(token) {
+    return `<pre class="my-3 p-3 bg-slate-800 rounded-lg overflow-x-auto"><code>${token.text}</code></pre>`;
+  },
+  codespan(token) {
+    return `<code class="px-1.5 py-0.5 bg-slate-800 rounded text-sm">${token.text}</code>`;
+  },
+  heading(token) {
+    const styles = {
+      1: 'text-2xl font-bold mt-6 mb-3',
+      2: 'text-xl font-semibold mt-5 mb-2',
+      3: 'text-lg font-semibold mt-4 mb-2',
+      4: 'text-base font-semibold mt-3 mb-2',
+      5: 'text-sm font-semibold mt-3 mb-1',
+      6: 'text-sm font-medium mt-2 mb-1'
+    };
+    return `<h${token.depth} class="${styles[token.depth] || ''}">${token.text}</h${token.depth}>`;
+  },
+  paragraph(token) {
+    return `<p class="mb-3">${token.text}</p>`;
+  },
+  list(token) {
+    const type = token.ordered ? 'ol' : 'ul';
+    const listClass = token.ordered ? 'list-decimal' : 'list-disc';
+    return `<${type} class="${listClass} list-inside space-y-1 my-3">${token.body}</${type}>`;
+  },
+  hr() {
+    return '<hr class="border-slate-700 my-6">';
+  }
+};
+
+marked.use({ renderer: markedRenderer, gfm: true, breaks: true });
+
 function updateEditorPreview() {
   const markdown = editorTextarea.value;
-  // Simple markdown to HTML conversion (basic implementation)
-  const html = simpleMarkdownToHtml(markdown);
+  const html = renderMarkdownWithFrontmatter(markdown);
   editorPreview.innerHTML = html;
 }
 
-function simpleMarkdownToHtml(markdown) {
-  // Extract and render frontmatter separately
+function renderMarkdownWithFrontmatter(markdown) {
+  // Extract and render frontmatter separately (marked doesn't handle YAML frontmatter)
   let content = markdown;
   let frontmatterHtml = '';
 
@@ -1139,51 +1226,7 @@ function simpleMarkdownToHtml(markdown) {
     frontmatterHtml = `<div class="mb-6 p-4 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm font-mono">${fields}</div>`;
   }
 
-  // Basic markdown parsing - handles common cases
-  let html = content
-    // Escape HTML first
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    // Headers
-    .replace(/^### (.*)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.*)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.*)$/gm, '<h1>$1</h1>')
-    // Bold and italic
-    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Code blocks
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    // Inline code
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Images - resolve relative paths to absolute file:// URLs
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, src) => {
-      // If it's a relative path and we have a recording directory, make it absolute
-      if (editorRecordingDir && !src.startsWith('http') && !src.startsWith('file://')) {
-        const absolutePath = editorRecordingDir.replace(/\\/g, '/') + '/' + src;
-        return `<img src="file:///${absolutePath}" alt="${alt}" class="max-w-full rounded-lg">`;
-      }
-      return `<img src="${src}" alt="${alt}" class="max-w-full rounded-lg">`;
-    })
-    // Links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-teal-400 hover:underline">$1</a>')
-    // Horizontal rules
-    .replace(/^---$/gm, '<hr class="border-slate-700 my-4">')
-    // Unordered lists
-    .replace(/^- (.*)$/gm, '<li>$1</li>')
-    // Ordered lists
-    .replace(/^\d+\. (.*)$/gm, '<li>$1</li>')
-    // Paragraphs (lines with content)
-    .replace(/^(?!<[h|l|p|u|o|i|c|a|s|b|e|hr])(.+)$/gm, '<p>$1</p>')
-    // Wrap consecutive li elements in ul/ol
-    .replace(/(<li>.*<\/li>\n?)+/g, '<ul class="list-disc list-inside space-y-1">$&</ul>')
-    // Convert newlines to <br> for line break support, then clean up redundant breaks around block elements
-    .replace(/\n/g, '<br>')
-    .replace(/<br>(<(h[1-6]|p|ul|ol|li|pre|hr|div|blockquote|img)[^>]*>)/gi, '$1')
-    .replace(/(<\/(h[1-6]|p|ul|ol|li|pre|hr|div|blockquote)>)<br>/gi, '$1');
-
-  return frontmatterHtml + html;
+  return frontmatterHtml + marked.parse(content);
 }
 
 // Editor event handlers

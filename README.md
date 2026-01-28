@@ -31,6 +31,7 @@ Features:
 - URL history and recent recordings sidebar
 - Viewport presets (HD, Full HD, Mobile, Tablet, Custom)
 - Screenshots-only mode (skip recording clicks/form inputs)
+- Custom CSS injection (hide cookie banners, popups, etc.)
 - Refetch screenshots from existing recordings
 - Draggable recorder panel (constrained to viewport)
 - Built-in markdown editor for recorded documentation
@@ -50,6 +51,8 @@ Options:
 | `-t, --title <title>` | Document title (adds YAML front matter) | none |
 | `-s, --separator <sep>` | Screenshot separator in markdown | `---` |
 | `--screenshots-only` | Only capture screenshots (skip click/fill recording) | false |
+| `-c, --css <css>` | Custom CSS to inject (hide elements, etc.) | none |
+| `-cf, --css-file <path>` | Path to CSS file to inject | none |
 | `--refetch <dir>` | Refetch screenshots from existing recording | - |
 
 Examples:
@@ -152,6 +155,20 @@ npm run record https://example.com --screenshots-only
 ```
 
 In desktop app, uncheck "Record actions" before starting. A warning reminds you that credentials would be stored in `actions.json` when recording is enabled.
+
+## CSS Injection
+
+Inject custom CSS to hide cookie consent banners, popups, or other unwanted elements during recording:
+
+```bash
+# Inline CSS
+npm run record https://example.com -c ".cookie-banner { display: none !important; }"
+
+# From file
+npm run record https://example.com -cf ./hide-elements.css
+```
+
+In the desktop app, check "Inject custom CSS" to reveal a textarea where you can enter CSS rules or load them from a file. CSS is injected on all pages and persists across navigation.
 
 ## Video Generation
 

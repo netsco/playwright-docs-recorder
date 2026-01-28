@@ -14,6 +14,7 @@ class DocRecorder {
     this.title = options.title;
     this.separator = options.separator;
     this.recordActions = options.recordActions !== false; // default true
+    this.customCSS = options.customCSS || null;
     this.actions = [];
     this.screenshots = [];
     this.screenshotCounter = 0;
@@ -32,6 +33,11 @@ class DocRecorder {
 
     this.browser = browser;
     this.page = page;
+
+    // Inject custom CSS if provided (will be re-injected on each page load)
+    if (this.customCSS) {
+      console.log('💅 Custom CSS will be injected on all pages');
+    }
 
     // Expose functions to page
     await page.exposeFunction('__recordAction', (action) => {
@@ -92,6 +98,11 @@ class DocRecorder {
   }
 
   async injectPageScript() {
+    // Inject custom CSS first (before any page content renders)
+    if (this.customCSS) {
+      await this.page.addStyleTag({ content: this.customCSS });
+    }
+
     // Get shared UI templates
     const legendHTML = getLegendHTML();
     const legendStyles = getLegendStyles();
@@ -614,6 +625,7 @@ class DocRecorder {
         title: this.title,
         viewport: this.viewport,
         separator: this.separator,
+        customCSS: this.customCSS,
         actions: this.actions
       }, null, 2)
     );
@@ -669,7 +681,9 @@ function parseArgs() {
     noSeparator: false,
     nonInteractive: false,
     screenshotsOnly: false,
-    refetch: false
+    refetch: false,
+    css: null,
+    cssFile: null
   };
   const argv = process.argv.slice(2);
 
@@ -683,6 +697,8 @@ function parseArgs() {
     else if (arg === '-n' || arg === '--non-interactive') args.nonInteractive = true;
     else if (arg === '-so' || arg === '--screenshots-only') args.screenshotsOnly = true;
     else if (arg === '--refetch') args.refetch = true;
+    else if (arg === '-c' || arg === '--css') args.css = argv[++i];
+    else if (arg === '-cf' || arg === '--css-file') args.cssFile = argv[++i];
     else if (arg === '-h' || arg === '--help') {
       console.log(`
 📸 Documentation Recorder
@@ -698,6 +714,8 @@ Options:
   -ns, --no-separator      Disable separator between screenshots
   -n, --non-interactive    Skip prompts, use defaults for optional args
   -so, --screenshots-only  Only capture screenshots (skip click/fill recording)
+  -c, --css <css>          Custom CSS to inject (hide elements, etc.)
+  -cf, --css-file <path>   Path to CSS file to inject
   --refetch                Refetch screenshots from existing recording
   -h, --help               Show this help message
 
@@ -803,12 +821,26 @@ async function main() {
   const [width, height] = args.viewport.split('x').map(Number);
   const viewport = { width: width || 1280, height: height || 720 };
 
+  // Resolve custom CSS from inline or file
+  let customCSS = args.css || null;
+  if (args.cssFile) {
+    try {
+      customCSS = fs.readFileSync(args.cssFile, 'utf8');
+      console.log(`💅 Loaded CSS from: ${args.cssFile}`);
+    } catch (err) {
+      console.error(`❌ Failed to load CSS file: ${args.cssFile}`);
+      console.error(`   ${err.message}`);
+      process.exit(1);
+    }
+  }
+
   new DocRecorder({
     outputDir: args.output,
     viewport,
     title: args.title,
     separator: args.separator,
-    recordActions: !args.screenshotsOnly
+    recordActions: !args.screenshotsOnly,
+    customCSS
   }).start(args.url);
 }
 

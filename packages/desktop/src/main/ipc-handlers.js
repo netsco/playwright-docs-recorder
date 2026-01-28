@@ -30,6 +30,7 @@ function registerIpcHandlers() {
       url: url,
       viewport: options.viewport || settings.get('viewport'),
       recordActions: options.recordActions !== false, // default true
+      customCSS: options.customCSS || null,
       actions: [],
       screenshots: [],
       screenshotCounter: 0,
@@ -174,7 +175,9 @@ function registerIpcHandlers() {
       recentUrls: settings.get('recentUrls'),
       separator: settings.get('separator'),
       showLog: settings.get('showLog'),
-      showShortcuts: settings.get('showShortcuts')
+      showShortcuts: settings.get('showShortcuts'),
+      injectCSS: settings.get('injectCSS'),
+      customCSS: settings.get('customCSS')
     };
   });
 
@@ -185,6 +188,8 @@ function registerIpcHandlers() {
     if (newSettings.separator !== undefined) settings.set('separator', newSettings.separator);
     if (newSettings.showLog !== undefined) settings.set('showLog', newSettings.showLog);
     if (newSettings.showShortcuts !== undefined) settings.set('showShortcuts', newSettings.showShortcuts);
+    if (newSettings.injectCSS !== undefined) settings.set('injectCSS', newSettings.injectCSS);
+    if (newSettings.customCSS !== undefined) settings.set('customCSS', newSettings.customCSS);
     return { success: true };
   });
 
@@ -210,6 +215,24 @@ function registerIpcHandlers() {
     if (!result.canceled && result.filePaths.length > 0) {
       settings.set('outputDir', result.filePaths[0]);
       return { success: true, path: result.filePaths[0] };
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('select-css-file', async () => {
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'CSS Files', extensions: ['css'] }],
+      properties: ['openFile']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const fs = require('fs');
+      try {
+        const content = fs.readFileSync(result.filePaths[0], 'utf8');
+        return { success: true, content, path: result.filePaths[0] };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
     }
     return { success: false };
   });
@@ -243,10 +266,10 @@ function registerIpcHandlers() {
       const recording = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
       const { generateMarkdown } = require('@doc-recorder/shared');
 
-      const screenshots = recording.screenshots || recording.actions.filter(a => a.type === 'screenshot');
+      const actions = recording.screenshots || recording.actions.filter(a => a.type === 'screenshot');
       const markdown = generateMarkdown({
         title: recording.title,
-        screenshots,
+        actions,
         separator: recording.separator
       });
 
