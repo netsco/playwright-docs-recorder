@@ -2,12 +2,19 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
+function slugify(text) {
+  return text.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 class DocRecorder {
   constructor(options = {}) {
     this.outputDir = options.outputDir || './doc-output';
     this.scriptName = options.scriptName || 'recorded-script';
     this.viewport = options.viewport || { width: 1280, height: 720 };
-    this.title = options.title || null;
+    this.title = options.title;
+    this.separator = options.separator;
     this.actions = [];
     this.screenshots = [];
     this.screenshotCounter = 0;
@@ -56,7 +63,25 @@ class DocRecorder {
 
     // Navigate to URL
     if (url && url !== 'about:blank') {
-      await page.goto(url);
+      try {
+        await page.goto(url);
+      } catch (err) {
+        await browser.close();
+        if (err.message.includes('net::ERR_NAME_NOT_RESOLVED')) {
+          console.error(`\n❌ Could not resolve URL: ${url}`);
+          console.error('   Check that the domain name is correct.\n');
+        } else if (err.message.includes('net::ERR_CONNECTION_REFUSED')) {
+          console.error(`\n❌ Connection refused: ${url}`);
+          console.error('   The server may not be running.\n');
+        } else if (err.message.includes('net::ERR_INVALID_URL') || err.message.includes('Invalid URL')) {
+          console.error(`\n❌ Invalid URL: ${url}`);
+          console.error('   Please provide a valid URL (e.g., https://example.com).\n');
+        } else {
+          console.error(`\n❌ Failed to navigate to: ${url}`);
+          console.error(`   ${err.message}\n`);
+        }
+        process.exit(1);
+      }
     }
 
     this.printHelp();
@@ -84,25 +109,120 @@ class DocRecorder {
       const legend = document.createElement('div');
       legend.id = '__shortcuts-legend';
       legend.innerHTML = `
-        <div style="font-weight:bold;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:4px;">Recorder</div>
-        <div><kbd>Ctrl+Click</kbd> Highlight</div>
-        <div><kbd>Ctrl+Shift+S</kbd> Screenshot</div>
-        <div><kbd>Ctrl+Shift+K</kbd> + note</div>
-        <div><kbd>Ctrl+Shift+X</kbd> Clear</div>
+        <div id="__legend-header" style="display:flex;justify-content:space-between;align-items:center;cursor:move;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:4px;">
+          <span style="font-weight:bold;">Recorder</span>
+          <button id="__btn-minimize" style="background:rgba(255,255,255,0.15);border:none;border-radius:3px;padding:2px 6px;color:#fff;cursor:pointer;font-size:12px;line-height:1;">−</button>
+        </div>
+        <div id="__legend-content">
+          <div><kbd>Ctrl+Hover</kbd> Preview</div>
+          <div><kbd>Ctrl+Click</kbd> Lock highlight</div>
+          <div><kbd>Ctrl+Shift+S</kbd> Screenshot</div>
+          <div><kbd>Ctrl+Shift+K</kbd> + note</div>
+          <div><kbd>Ctrl+Shift+X</kbd> Clear</div>
+        </div>
+        <div id="__legend-buttons" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.3);padding-top:8px;display:flex;gap:6px;">
+          <button id="__btn-screenshot" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">📷</button>
+          <button id="__btn-note" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">📝 Note</button>
+          <button id="__btn-clear" style="background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;color:#fff;cursor:pointer;font-size:12px;">✖ Clear</button>
+        </div>
       `;
       legend.style.cssText = `
-        position: fixed; bottom: 20px; right: 20px; z-index: 999998;
+        position: fixed; z-index: 999998;
         background: rgba(0,0,0,0.85); color: #fff; padding: 12px 16px;
         border-radius: 8px; font-family: system-ui, sans-serif; font-size: 12px;
         line-height: 1.8; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        white-space: nowrap; min-width: 180px;
+        white-space: nowrap; min-width: 180px; user-select: none;
       `;
+      // Position in bottom-right initially
+      legend.style.right = '20px';
+      legend.style.bottom = '20px';
       legend.querySelectorAll('kbd').forEach(kbd => {
         kbd.style.cssText = `
           background: rgba(255,255,255,0.15); padding: 2px 5px; border-radius: 3px;
           font-family: inherit; margin-right: 6px;
         `;
       });
+      // Button hover effects
+      legend.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(255,255,255,0.25)');
+        btn.addEventListener('mouseleave', () => btn.style.background = 'rgba(255,255,255,0.15)');
+      });
+
+      // Minimize toggle
+      const legendContent = legend.querySelector('#__legend-content');
+      const minimizeBtn = legend.querySelector('#__btn-minimize');
+      const legendButtons = legend.querySelector('#__legend-buttons');
+      minimizeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isMinimized = legendContent.style.display === 'none';
+        legendContent.style.display = isMinimized ? 'block' : 'none';
+        legendButtons.style.borderTop = isMinimized ? '1px solid rgba(255,255,255,0.3)' : 'none';
+        legendButtons.style.marginTop = isMinimized ? '8px' : '0';
+        legendButtons.style.paddingTop = isMinimized ? '8px' : '0';
+        minimizeBtn.textContent = isMinimized ? '−' : '+';
+        // Constrain to viewport after expanding (panel is now taller)
+        if (isMinimized) {
+          setTimeout(() => {
+            const rect = legend.getBoundingClientRect();
+            if (rect.bottom > window.innerHeight || rect.right > window.innerWidth) {
+              legend.style.left = Math.max(0, Math.min(window.innerWidth - rect.width, rect.left)) + 'px';
+              legend.style.top = Math.max(0, Math.min(window.innerHeight - rect.height, rect.top)) + 'px';
+              legend.style.right = 'auto';
+              legend.style.bottom = 'auto';
+            }
+          }, 0);
+        }
+      });
+
+      // Drag functionality
+      const legendHeader = legend.querySelector('#__legend-header');
+      let isDragging = false;
+      let dragOffset = { x: 0, y: 0 };
+
+      function constrainToViewport() {
+        const rect = legend.getBoundingClientRect();
+        const maxX = window.innerWidth - rect.width;
+        const maxY = window.innerHeight - rect.height;
+        legend.style.left = Math.max(0, Math.min(maxX, rect.left)) + 'px';
+        legend.style.top = Math.max(0, Math.min(maxY, rect.top)) + 'px';
+        legend.style.right = 'auto';
+        legend.style.bottom = 'auto';
+      }
+
+      legendHeader.addEventListener('mousedown', (e) => {
+        if (e.target === minimizeBtn) return;
+        isDragging = true;
+        // Convert to top/left positioning if still using bottom/right
+        if (legend.style.right !== 'auto') {
+          const rect = legend.getBoundingClientRect();
+          legend.style.left = rect.left + 'px';
+          legend.style.top = rect.top + 'px';
+          legend.style.right = 'auto';
+          legend.style.bottom = 'auto';
+        }
+        dragOffset.x = e.clientX - legend.offsetLeft;
+        dragOffset.y = e.clientY - legend.offsetTop;
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const newX = e.clientX - dragOffset.x;
+        const newY = e.clientY - dragOffset.y;
+        const maxX = window.innerWidth - legend.offsetWidth;
+        const maxY = window.innerHeight - legend.offsetHeight;
+        legend.style.left = Math.max(0, Math.min(maxX, newX)) + 'px';
+        legend.style.top = Math.max(0, Math.min(maxY, newY)) + 'px';
+      });
+
+      document.addEventListener('mouseup', () => isDragging = false);
+
+      window.addEventListener('resize', () => {
+        if (legend.style.right === 'auto') {
+          constrainToViewport();
+        }
+      });
+
       document.body.appendChild(legend);
 
       // Custom prompt dialog (native prompt doesn't work in Playwright)
@@ -249,6 +369,7 @@ class DocRecorder {
       }
 
       let highlighted = null;
+      let isPreviewMode = false;
 
       function getSelector(el) {
         if (!el || el === document.body) return null;
@@ -307,6 +428,38 @@ class DocRecorder {
         overlay.style.display = 'none';
       }
 
+      function clearHighlight() {
+        highlighted = null;
+        hideOverlay();
+        window.__notifyHighlight(null);
+      }
+
+      // Button click handlers
+      document.getElementById('__btn-screenshot').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = highlighted ? getSelector(highlighted) : null;
+        await window.__takeScreenshot(sel, null);
+        clearHighlight();
+      });
+
+      document.getElementById('__btn-note').addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = highlighted ? getSelector(highlighted) : null;
+        const note = await showPrompt();
+        if (note !== null) {
+          await window.__takeScreenshot(sel, note || null);
+          clearHighlight();
+        }
+      });
+
+      document.getElementById('__btn-clear').addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        clearHighlight();
+      });
+
       // Keyboard shortcuts
       document.addEventListener('keydown', async (e) => {
         if (!e.ctrlKey || !e.shiftKey) return;
@@ -337,16 +490,14 @@ class DocRecorder {
           e.preventDefault();
           e.stopPropagation();
           const sel = highlighted ? getSelector(highlighted) : null;
-          window.__takeScreenshot(sel, null);
+          window.__takeScreenshot(sel, null).then(() => clearHighlight());
         }
 
         // X = Clear highlight
         if (code === 'KeyX') {
           e.preventDefault();
           e.stopPropagation();
-          highlighted = null;
-          hideOverlay();
-          window.__notifyHighlight(null);
+          clearHighlight();
         }
 
         // K = Screenshot with note
@@ -356,7 +507,7 @@ class DocRecorder {
           const sel = highlighted ? getSelector(highlighted) : null;
           showPrompt().then(note => {
             if (note !== null) {
-              window.__takeScreenshot(sel, note || null);
+              window.__takeScreenshot(sel, note || null).then(() => clearHighlight());
             }
           });
         }
@@ -388,6 +539,33 @@ class DocRecorder {
           window.__recordAction({ type: 'click', selector: sel });
         }
       }, true);
+
+      // Ctrl+hover preview highlight
+      document.addEventListener('mousemove', (e) => {
+        if (!e.ctrlKey) {
+          // Ctrl released - clear preview if not locked
+          if (isPreviewMode && !highlighted) {
+            hideOverlay();
+          }
+          isPreviewMode = false;
+          return;
+        }
+
+        // Ctrl held - show preview on hovered element
+        isPreviewMode = true;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (el && !el.id?.startsWith('__')) {
+          showOverlay(el);
+        }
+      });
+
+      // Handle Ctrl release to clear preview
+      document.addEventListener('keyup', (e) => {
+        if (e.key === 'Control' && isPreviewMode && !highlighted) {
+          hideOverlay();
+          isPreviewMode = false;
+        }
+      });
 
       // Record input changes
       document.addEventListener('change', (e) => {
@@ -430,6 +608,8 @@ class DocRecorder {
   generateScript() {
     const titleJson = this.title ? JSON.stringify(this.title) : 'null';
     const screenshotsJson = JSON.stringify(this.screenshots);
+    const separatorJson = this.separator ? JSON.stringify(this.separator) : 'null';
+    const mdFilename = slugify(this.title) + '.md';
 
     const lines = [
       '// Generated documentation script - re-run with: node recorded-script.js',
@@ -481,14 +661,16 @@ class DocRecorder {
     lines.push('  // Generate markdown');
     lines.push(`  const title = ${titleJson};`);
     lines.push(`  const screenshots = ${screenshotsJson};`);
+    lines.push(`  const separator = ${separatorJson};`);
     lines.push('  const mdLines = [];');
     lines.push('  if (title) { mdLines.push("---", `title: "${title}"`, "---", ""); }');
     lines.push('  for (const s of screenshots) {');
     lines.push('    if (s.note) { mdLines.push(s.note, ""); }');
-    lines.push('    mdLines.push(`![${s.filename}](screenshots/${s.filename})`, "", "---", "");');
+    lines.push('    mdLines.push(`![${s.filename}](screenshots/${s.filename})`, "");');
+    lines.push('    if (separator) { mdLines.push(separator, ""); }');
     lines.push('  }');
-    lines.push('  fs.writeFileSync(path.join(__dirname, "screenshots.md"), mdLines.join("\\n"));');
-    lines.push('  console.log("\\n✅ Generated screenshots.md");');
+    lines.push(`  fs.writeFileSync(path.join(__dirname, "${mdFilename}"), mdLines.join("\\n"));`);
+    lines.push(`  console.log("\\n✅ Generated ${mdFilename}");`);
 
     lines.push('', '  await browser.close();', '})();');
     return lines.join('\n');
@@ -506,7 +688,9 @@ class DocRecorder {
         lines.push(screenshot.note, '');
       }
       lines.push(`![${screenshot.filename}](screenshots/${screenshot.filename})`, '');
-      lines.push('---', '');
+      if (this.separator) {
+        lines.push(this.separator, '');
+      }
     }
 
     return lines.join('\n');
@@ -518,8 +702,9 @@ class DocRecorder {
     const scriptPath = path.join(this.outputDir, this.scriptName + '.js');
     fs.writeFileSync(scriptPath, this.generateScript());
 
+    const mdFilename = slugify(this.title) + '.md';
     fs.writeFileSync(
-      path.join(this.outputDir, 'screenshots.md'),
+      path.join(this.outputDir, mdFilename),
       this.generateMarkdown()
     );
 
@@ -528,6 +713,7 @@ class DocRecorder {
       JSON.stringify({
         title: this.title,
         viewport: this.viewport,
+        separator: this.separator,
         actions: this.actions
       }, null, 2)
     );
@@ -536,6 +722,7 @@ class DocRecorder {
 
     console.log(`✅ Saved ${this.actions.length} actions, ${this.screenshots.length} screenshots`);
     console.log(`   Script: ${scriptPath}`);
+    console.log(`   Markdown: ${mdFilename}`);
     console.log(`   Re-run: node ${scriptPath}`);
     process.exit(0);
   }
@@ -545,7 +732,8 @@ class DocRecorder {
 ┌─────────────────────────────────────────────┐
 │  📸 Documentation Recorder                  │
 ├─────────────────────────────────────────────┤
-│  Ctrl+Click        Highlight element        │
+│  Ctrl+Hover        Preview highlight        │
+│  Ctrl+Click        Lock highlight           │
 │  Ctrl+Shift+S      Take screenshot          │
 │  Ctrl+Shift+K      Screenshot + note        │
 │  Ctrl+Shift+X      Clear highlight          │
@@ -556,18 +744,122 @@ class DocRecorder {
 }
 
 // Run
-const url = process.argv[2];
-const outputDir = process.argv[3] || './doc-output';
-const viewportArg = process.argv[4] || '1280x720';
-const title = process.argv[5] || null;
+const readline = require('readline');
 
-if (!url) {
-  console.log('Usage: node recorder.js <url> [output-dir] [viewport] [title]');
-  console.log('Example: node recorder.js https://example.com ./my-docs 1920x1080 "Getting Started Guide"');
-  process.exit(1);
+function prompt(question, defaultValue = '') {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const suffix = defaultValue ? ` (${defaultValue})` : '';
+  return new Promise(resolve => {
+    rl.question(`${question}${suffix}: `, answer => {
+      rl.close();
+      resolve(answer.trim() || defaultValue);
+    });
+  });
 }
 
-const [width, height] = viewportArg.split('x').map(Number);
-const viewport = { width: width || 1280, height: height || 720 };
+function parseArgs() {
+  const args = {
+    url: null,
+    output: './doc-output',
+    viewport: '1280x720',
+    title: null,
+    separator: '---',
+    noSeparator: false,
+    nonInteractive: false
+  };
+  const argv = process.argv.slice(2);
 
-new DocRecorder({ outputDir, viewport, title }).start(url);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '-o' || arg === '--output') args.output = argv[++i];
+    else if (arg === '-v' || arg === '--viewport') args.viewport = argv[++i];
+    else if (arg === '-t' || arg === '--title') args.title = argv[++i];
+    else if (arg === '-s' || arg === '--separator') args.separator = argv[++i];
+    else if (arg === '-ns' || arg === '--no-separator') args.noSeparator = true;
+    else if (arg === '-n' || arg === '--non-interactive') args.nonInteractive = true;
+    else if (arg === '-h' || arg === '--help') {
+      console.log(`
+📸 Documentation Recorder
+
+Usage: node recorder.js <url> [options]
+
+Options:
+  -o, --output <dir>       Output directory (default: ./doc-output)
+  -v, --viewport <WxH>     Viewport size (default: 1280x720)
+  -t, --title <title>      Document title (required)
+  -s, --separator <sep>    Separator between screenshots (default: ---)
+  -ns, --no-separator      Disable separator between screenshots
+  -n, --non-interactive    Skip prompts, use defaults for optional args
+  -h, --help               Show this help message
+
+Examples:
+  node recorder.js https://example.com --title "Getting Started"
+  node recorder.js https://example.com -t "My Guide" -o ./docs -v 1920x1080
+  node recorder.js https://example.com -t "Guide" --no-separator
+  node recorder.js https://example.com -t "Quick Doc" -n
+`);
+      process.exit(0);
+    }
+    else if (!arg.startsWith('-')) args.url = arg;
+  }
+
+  // --no-separator overrides --separator
+  if (args.noSeparator) args.separator = null;
+
+  return args;
+}
+
+async function main() {
+  const args = parseArgs();
+
+  if (args.nonInteractive) {
+    // Non-interactive mode: require URL and title
+    if (!args.url) {
+      console.error('❌ URL is required');
+      process.exit(1);
+    }
+    if (!args.title) {
+      console.error('❌ --title is required in non-interactive mode');
+      process.exit(1);
+    }
+  } else {
+    // Interactive mode: prompt for missing values
+    if (!args.url) {
+      console.log('📸 Documentation Recorder\n');
+      args.url = await prompt('URL to record');
+      if (!args.url) {
+        console.error('❌ URL is required');
+        process.exit(1);
+      }
+    }
+
+    if (!args.title) {
+      args.title = await prompt('Document title');
+      if (!args.title) {
+        console.error('❌ Title is required');
+        process.exit(1);
+      }
+    }
+
+    // Prompt for optional values with defaults
+    args.output = await prompt('Output directory', args.output);
+    args.viewport = await prompt('Viewport (WxH)', args.viewport);
+    args.separator = await prompt('Separator (--- or none)', args.separator);
+  }
+
+  const [width, height] = args.viewport.split('x').map(Number);
+  const viewport = { width: width || 1280, height: height || 720 };
+
+  new DocRecorder({
+    outputDir: args.output,
+    viewport,
+    title: args.title,
+    separator: args.separator
+  }).start(args.url);
+}
+
+main();
