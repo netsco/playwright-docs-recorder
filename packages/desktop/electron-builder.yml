@@ -87,7 +87,7 @@ deb:
   artifactName: DocRecorder-${version}-linux.deb
 
 asar: true
-compression: maximum
+compression: normal
 
 # Disable auto-publish (uncomment and configure when ready)
 # publish:
