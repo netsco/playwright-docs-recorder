@@ -22,7 +22,7 @@
     "lint:fix": "eslint \"packages/**/*.js\" --fix",
     "changeset": "changeset",
     "version": "changeset version",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
