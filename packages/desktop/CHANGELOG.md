@@ -1,5 +1,11 @@
 # @doc-recorder/desktop
 
+## 0.2.2
+
+### Patch Changes
+
+- Fix Windows CI build by using normal compression instead of maximum (avoids 7zip dependency)
+
 ## 0.2.1
 
 ### Patch Changes
