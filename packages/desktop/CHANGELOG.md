@@ -1,5 +1,11 @@
 # @doc-recorder/desktop
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix CI build by making husky optional in prepare script
+
 ## 0.2.0
 
 ### Minor Changes
