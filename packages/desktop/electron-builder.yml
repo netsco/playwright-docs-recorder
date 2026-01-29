@@ -1,43 +1,22 @@
 appId: com.docrecorder.app
 productName: Documentation Recorder
-electronVersion: "28.0.0"
+electronVersion: "40.0.0"
 
 directories:
   output: dist
 
+# Include source code and node_modules (prebuild script populates this)
 files:
   - src/**/*
+  - node_modules/**/*
   - "!**/*.map"
   - "!**/__tests__/**"
   - "!**/refetch.js"
-  - from: "../../node_modules/@doc-recorder/shared"
-    to: "node_modules/@doc-recorder/shared"
-    filter:
-      - "**/*"
-      - "!__tests__/**"
-      - "!refetch.js"
-  - from: "../../node_modules/electron-store"
-    to: "node_modules/electron-store"
-  - from: "../../node_modules/conf"
-    to: "node_modules/conf"
-  - from: "../../node_modules/atomically"
-    to: "node_modules/atomically"
-  - from: "../../node_modules/dot-prop"
-    to: "node_modules/dot-prop"
-  - from: "../../node_modules/env-paths"
-    to: "node_modules/env-paths"
-  - from: "../../node_modules/json-schema-typed"
-    to: "node_modules/json-schema-typed"
-  - from: "../../node_modules/ajv"
-    to: "node_modules/ajv"
-  - from: "../../node_modules/ajv-formats"
-    to: "node_modules/ajv-formats"
-  - from: "../../node_modules/debounce-fn"
-    to: "node_modules/debounce-fn"
-  - from: "../../node_modules/semver"
-    to: "node_modules/semver"
-  - from: "../../node_modules/mimic-fn"
-    to: "node_modules/mimic-fn"
+
+# Don't let electron-builder manage dependencies - we handle it ourselves
+npmRebuild: false
+buildDependenciesFromSource: false
+afterPack: "./scripts/afterPack.js"
 
 win:
   target:
@@ -86,10 +65,5 @@ appImage:
 deb:
   artifactName: DocRecorder-${version}-linux.deb
 
-asar: true
-compression: normal
-
-# Disable auto-publish (uncomment and configure when ready)
-# publish:
-#   provider: github
-#   releaseType: release
+asar: false
+compression: maximum

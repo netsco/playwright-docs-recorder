@@ -1,1 +1,7 @@
 npx lint-staged
+
+# Run desktop build test if package dependencies or electron-builder config changed
+if git diff --cached --name-only | grep -qE "(package\.json|package-lock\.json|electron-builder\.yml)"; then
+  echo "Package files changed - running desktop build test..."
+  npm run desktop:build || exit 1
+fi

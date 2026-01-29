@@ -48,6 +48,8 @@ node generate-recording.js <actions.json> [options]
 | `-c, --css <css>` | Custom CSS to inject (hide elements) | none |
 | `-cf, --css-file <path>` | Path to CSS file to inject | none |
 | `--refetch <dir>` | Refetch screenshots from recording | - |
+| `-n, --non-interactive` | Skip interactive prompts (requires URL and title) | false |
+| `-ns, --no-separator` | Disable screenshot separators in markdown | false |
 
 ### Video Generation Options
 | Option | Description | Default |
@@ -58,6 +60,8 @@ node generate-recording.js <actions.json> [options]
 | `--width <n>` | Video width | 1280 |
 | `--height <n>` | Video height | 720 |
 | `--note-position <pos>` | Note overlay: top, bottom | bottom |
+| `--action-gifs` | Generate individual GIFs for each action | false |
+| `--gifs-only` | Skip full video, only generate action GIFs | false |
 
 ## Shortcuts
 
@@ -65,12 +69,15 @@ node generate-recording.js <actions.json> [options]
 | Action | Result |
 |--------|--------|
 | `Ctrl+Click` | Highlight clicked element |
+| `Ctrl+Hover` | Preview highlight on element (without locking) |
 
 ### Keyboard
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+Shift+S` | Take screenshot |
 | `Ctrl+Shift+K` | Screenshot with note |
+| `Ctrl+Shift+F` | Full page screenshot |
+| `Ctrl+Shift+H` | Toggle highlight on hovered element |
 | `Ctrl+Shift+X` | Clear highlight |
 | `Ctrl+C` | Stop and save |
 
@@ -119,13 +126,16 @@ src/
 - **Tailwind CSS**: Styling via `src/renderer/styles/`
 
 Desktop-specific features:
-- Viewport presets (HD, Full HD, Mobile, Tablet, Custom)
+- Viewport presets (WSXGA+, Full HD, HD, Mobile, Mobile Landscape, Tablet, Tablet Landscape, Custom)
 - Screenshots-only mode with credentials warning
 - Custom CSS injection (hide cookie banners, popups, etc.)
 - Refetch screenshots from existing recordings
 - Draggable recorder panel (constrained to viewport)
 - "+" button to start new recording (hidden during active recording)
 - Built-in markdown editor with live preview
+- Project management (create, edit, delete projects; move recordings between projects)
+- Screenshot editing (blur regions, annotations, reset to original)
+- Action log visibility toggle
 
 ### @doc-recorder/shared (`packages/shared/`)
 
@@ -136,6 +146,8 @@ Shared utilities consumed by CLI and desktop:
 - `slugify(text)` - Converts titles to valid filenames
 - `refetchScreenshots(dir, options)` - Replays goto/screenshot actions to regenerate images
 - `getLegendHTML()`, `getLegendStyles()`, `getKbdStyles()` - Shared recorder UI templates
+- `applyBlurRegions()`, `renderAnnotations()` - Image processing for screenshot editing
+- `generateActionGif()`, `generateAllActionGifs()` - Per-action GIF generation
 
 ## Output Structure
 
@@ -144,6 +156,25 @@ Both CLI and desktop output to `doc-output/` (or custom dir):
 - `screenshots/` - Captured PNG screenshots
 - `<title>.md` - Markdown with front matter (filename is slugified title, e.g., `getting-started.md`)
 - `actions.json` - Action log with title, viewport, mdFilename, and actions array
+
+## Build Maintenance
+
+When adding or updating dependencies in `packages/desktop/package.json`, you MUST update `packages/desktop/electron-builder.yml` to include the new modules and their transitive dependencies.
+
+**Why:** The electron-builder config manually specifies which node_modules to bundle. Missing dependencies cause runtime errors like "Cannot find module 'xyz'".
+
+**How to update:**
+1. Add the new dependency to package.json and run `npm install`
+2. Check the dependency's transitive deps: `npm ls <package-name> --all`
+3. Add entries to the `files` section in `electron-builder.yml`:
+   ```yaml
+   - from: "../../node_modules/<package-name>"
+     to: "node_modules/<package-name>"
+   ```
+4. Run `npm run desktop:build` to verify the build works
+5. Test the built app to ensure no missing module errors
+
+**Pre-commit hook:** A build test runs automatically when package.json, package-lock.json, or electron-builder.yml changes.
 
 ## Video Generation
 

@@ -29,13 +29,15 @@ npm run desktop
 Features:
 - Visual recording controls with start/stop buttons
 - URL history and recent recordings sidebar
-- Viewport presets (HD, Full HD, Mobile, Tablet, Custom)
+- Viewport presets (WSXGA+, Full HD, HD, Mobile, Mobile Landscape, Tablet, Tablet Landscape, Custom)
 - Screenshots-only mode (skip recording clicks/form inputs)
 - Custom CSS injection (hide cookie banners, popups, etc.)
 - Refetch screenshots from existing recordings
 - Draggable recorder panel (constrained to viewport)
 - Built-in markdown editor for recorded documentation
 - Slugified markdown filenames based on project title
+- Project management (create, edit, delete projects; organize recordings)
+- Screenshot editing (blur regions, annotations, reset to original)
 
 ## CLI Usage
 
@@ -54,6 +56,8 @@ Options:
 | `-c, --css <css>` | Custom CSS to inject (hide elements, etc.) | none |
 | `-cf, --css-file <path>` | Path to CSS file to inject | none |
 | `--refetch <dir>` | Refetch screenshots from existing recording | - |
+| `-n, --non-interactive` | Skip interactive prompts (requires URL and title via flags) | false |
+| `-ns, --no-separator` | Disable screenshot separators in markdown | false |
 
 Examples:
 ```bash
@@ -77,12 +81,15 @@ node recorder.js <url> [output-dir] [viewport] [title]
 | Action | Result |
 |--------|--------|
 | `Ctrl+Click` | Highlight clicked element |
+| `Ctrl+Hover` | Preview highlight on element (without locking) |
 
 ### Keyboard
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+Shift+S` | Take screenshot |
 | `Ctrl+Shift+K` | Screenshot with note (opens markdown editor) |
+| `Ctrl+Shift+F` | Full page screenshot |
+| `Ctrl+Shift+H` | Toggle highlight on hovered element |
 | `Ctrl+Shift+X` | Clear highlight |
 | `Ctrl+C` | Stop recording and save |
 
@@ -185,7 +192,11 @@ Options:
 | `-o, --output <dir>` | Output directory | ./recording-output |
 | `-f, --format <fmt>` | Format: mp4, gif, webm | mp4 |
 | `--fps <n>` | Frame rate | 2 |
+| `--width <n>` | Video width | 1280 |
+| `--height <n>` | Video height | 720 |
 | `--note-position <pos>` | Note overlay: top, bottom | bottom |
+| `--action-gifs` | Generate individual GIFs for each action | false |
+| `--gifs-only` | Skip full video, only generate action GIFs | false |
 
 Requires [ffmpeg](https://ffmpeg.org/) for video encoding.
 
