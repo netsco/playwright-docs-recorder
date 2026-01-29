@@ -1839,10 +1839,9 @@ function addScreenshotPreview(filename, dataUrl, note) {
   if (!preview) return;
 
   const item = document.createElement('div');
-  item.className = 'rounded-lg overflow-hidden bg-slate-800/30 border border-slate-700/30 hover:border-teal-500/50 cursor-pointer transition-all';
+  item.className = 'rounded overflow-hidden bg-slate-800/30 border border-slate-700/30 hover:border-teal-500/50 cursor-pointer transition-all aspect-video';
   item.innerHTML = `
-    <img src="${dataUrl}" alt="${filename}" title="${note || filename}" class="w-full h-auto block">
-    <div class="px-2 py-1.5 text-[10px] font-mono text-slate-500 truncate">${filename}</div>
+    <img src="${dataUrl}" alt="${filename}" title="${note || filename}" class="w-full h-full object-cover block">
   `;
   preview.insertBefore(item, preview.firstChild);
 }
