@@ -22,8 +22,9 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-          - os: macos-latest
-            platform: mac
+          # macOS disabled - asar:false causes symlink issues
+          # - os: macos-latest
+          #   platform: mac
           - os: ubuntu-latest
             platform: linux
 
@@ -89,7 +90,6 @@ jobs:
           name: desktop-${{ matrix.platform }}
           path: |
             packages/desktop/dist/*.exe
-            packages/desktop/dist/*.dmg
             packages/desktop/dist/*.AppImage
             packages/desktop/dist/*.deb
           if-no-files-found: error

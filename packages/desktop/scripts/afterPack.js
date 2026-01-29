@@ -7,9 +7,27 @@ const fs = require('fs');
 const path = require('path');
 
 exports.default = async function(context) {
-  const appDir = path.join(context.appOutDir, 'resources', 'app');
+  const { appOutDir, packager } = context;
+  const platform = packager.platform.name;
+
+  // Determine the correct app directory based on platform
+  let appDir;
+  if (platform === 'mac') {
+    const appName = packager.appInfo.productFilename;
+    appDir = path.join(appOutDir, `${appName}.app`, 'Contents', 'Resources', 'app');
+  } else {
+    appDir = path.join(appOutDir, 'resources', 'app');
+  }
+
   const nodeModulesDir = path.join(appDir, 'node_modules');
   const sourceNodeModules = path.join(__dirname, '..', 'node_modules');
+
+  console.log(`afterPack: Platform=${platform}, appDir=${appDir}`);
+
+  if (!fs.existsSync(appDir)) {
+    console.log('afterPack: App directory not found, skipping');
+    return;
+  }
 
   console.log('afterPack: Replacing node_modules with production dependencies...');
 

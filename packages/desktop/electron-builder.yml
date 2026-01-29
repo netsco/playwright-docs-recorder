@@ -65,5 +65,7 @@ appImage:
 deb:
   artifactName: DocRecorder-${version}-linux.deb
 
+# asar disabled - required for afterPack hook to replace node_modules
+# Note: macOS builds fail with asar:false due to symlink issues
 asar: false
 compression: maximum
