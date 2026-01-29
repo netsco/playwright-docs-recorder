@@ -1,36 +1,169 @@
 const { ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const { slugify } = require('@doc-recorder/shared');
 const { getSettingsStore, addRecentUrl } = require('./settings-store');
 const {
   saveRecording,
   saveScreenshot,
-  loadHistory,
-  addToHistory,
   deleteRecording,
   loadRecording,
   loadRecordingMarkdown,
   saveRecordingMarkdown
 } = require('./file-manager');
+const {
+  loadProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+  getProject,
+  getProjectRecordings,
+  addRecordingToProject,
+  removeRecordingFromProject,
+  moveRecording,
+  setLastOpenedProject,
+  getProjectFolderPath,
+  migrateExistingRecordings
+} = require('./project-manager');
 
 // Current recording state
 let currentRecording = null;
+let currentProjectId = null;
+let currentProject = null;
+
+/**
+ * Generate a unique recording ID based on slugified title.
+ * Appends -2, -3, etc. if the folder already exists.
+ * @param {string} title - Recording title
+ * @param {string} projectFolder - Project folder path
+ * @returns {string} - Unique recording ID (slug)
+ */
+function generateUniqueRecordingId(title, projectFolder) {
+  const baseSlug = slugify(title) || 'recording';
+  let slug = baseSlug;
+  let counter = 1;
+
+  // Check if folder exists and find unique name
+  while (fs.existsSync(path.join(projectFolder, slug))) {
+    counter++;
+    slug = `${baseSlug}-${counter}`;
+  }
+
+  return slug;
+}
 
 /**
  * Register all IPC handlers for the main process.
  */
 function registerIpcHandlers() {
+  // ===== Project Management =====
+
+  ipcMain.handle('get-projects', async () => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+
+    // Run migration on first access
+    migrateExistingRecordings(outputDir);
+
+    return loadProjects(outputDir);
+  });
+
+  ipcMain.handle('create-project', async (event, options) => {
+    const settings = getSettingsStore();
+    try {
+      const project = createProject(settings.get('outputDir'), options);
+      return { success: true, project };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('update-project', async (event, projectId, updates) => {
+    const settings = getSettingsStore();
+    try {
+      const project = updateProject(settings.get('outputDir'), projectId, updates);
+      return { success: true, project };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('delete-project', async (event, projectId) => {
+    const settings = getSettingsStore();
+    try {
+      deleteProject(settings.get('outputDir'), projectId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-project', async (event, projectId) => {
+    const settings = getSettingsStore();
+    const project = getProject(settings.get('outputDir'), projectId);
+    return project ? { success: true, project } : { success: false, error: 'Project not found' };
+  });
+
+  ipcMain.handle('get-project-recordings', async (event, projectId) => {
+    const settings = getSettingsStore();
+    return getProjectRecordings(settings.get('outputDir'), projectId);
+  });
+
+  ipcMain.handle('move-recording', async (event, recordingId, fromProjectId, toProjectId) => {
+    const settings = getSettingsStore();
+    try {
+      moveRecording(settings.get('outputDir'), recordingId, fromProjectId, toProjectId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('set-last-opened-project', async (event, projectId) => {
+    const settings = getSettingsStore();
+    setLastOpenedProject(settings.get('outputDir'), projectId);
+    return { success: true };
+  });
+
   // ===== Recording Controls =====
 
   ipcMain.handle('start-recording', async (event, url, options = {}) => {
     const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+
+    // Project is required
+    if (!options.projectId) {
+      return { success: false, error: 'Project is required' };
+    }
+
+    const project = getProject(outputDir, options.projectId);
+    if (!project) {
+      return { success: false, error: 'Project not found' };
+    }
+
+    currentProjectId = options.projectId;
+    currentProject = project;
+
+    // Determine effective settings (project defaults + overrides)
+    const projectSettings = project.settings || {};
+    const viewport = options.viewport || projectSettings.viewport || settings.get('viewport');
+    const injectCSS = options.injectCSS !== undefined ? options.injectCSS : projectSettings.injectCSS;
+    const customCSS = options.customCSS !== undefined ? options.customCSS : projectSettings.customCSS;
+
+    // Generate unique recording ID from slugified title
+    const title = options.title || 'Untitled';
+    const projectFolder = getProjectFolderPath(outputDir, project);
+    const recordingId = generateUniqueRecordingId(title, projectFolder);
 
     currentRecording = {
-      id: Date.now().toString(),
-      title: options.title || null,
+      id: recordingId,
+      title: title,
       url: url,
-      viewport: options.viewport || settings.get('viewport'),
+      viewport: viewport,
       recordActions: options.recordActions !== false, // default true
-      customCSS: options.customCSS || null,
+      injectCSS: injectCSS,
+      customCSS: customCSS || null,
+      settingsOverride: options.settingsOverride || {},
       actions: [],
       screenshots: [],
       screenshotCounter: 0,
@@ -40,7 +173,7 @@ function registerIpcHandlers() {
     addRecentUrl(url);
 
     const mode = currentRecording.recordActions ? 'full recording' : 'screenshots-only';
-    console.log(`Started ${mode}: ${url}`);
+    console.log(`Started ${mode}: ${url} (project: ${project.name})`);
     return { success: true, id: currentRecording.id, recordActions: currentRecording.recordActions };
   });
 
@@ -53,8 +186,12 @@ function registerIpcHandlers() {
     const outputDir = settings.get('outputDir');
 
     try {
-      const paths = saveRecording(outputDir, currentRecording);
-      addToHistory(outputDir, currentRecording);
+      const paths = saveRecording(outputDir, currentRecording, currentProject);
+
+      // Add to project recordings
+      if (currentProjectId) {
+        addRecordingToProject(outputDir, currentProjectId, currentRecording);
+      }
 
       console.log(`Saved recording: ${paths.recordingDir}`);
 
@@ -65,11 +202,14 @@ function registerIpcHandlers() {
           title: currentRecording.title,
           actionCount: currentRecording.actions.length,
           screenshotCount: currentRecording.screenshots.length,
+          projectId: currentProjectId,
           paths
         }
       };
 
       currentRecording = null;
+      currentProjectId = null;
+      currentProject = null;
       return result;
     } catch (error) {
       console.error('Failed to save recording:', error);
@@ -121,7 +261,13 @@ function registerIpcHandlers() {
 
       const settings = getSettingsStore();
       const outputDir = settings.get('outputDir');
-      const screenshotsDir = path.join(outputDir, currentRecording.id, 'screenshots');
+
+      // Build correct path based on whether we have a project
+      let baseDir = outputDir;
+      if (currentProject) {
+        baseDir = getProjectFolderPath(outputDir, currentProject);
+      }
+      const screenshotsDir = path.join(baseDir, currentRecording.id, 'screenshots');
 
       // Convert data URL to buffer
       const base64Data = imageDataUrl.replace(/^data:image\/png;base64,/, '');
@@ -149,20 +295,38 @@ function registerIpcHandlers() {
 
   // ===== History Management =====
 
-  ipcMain.handle('get-history', () => {
+  // Load recording now requires projectId
+  ipcMain.handle('load-recording', (event, recordingId, projectId) => {
     const settings = getSettingsStore();
-    return loadHistory(settings.get('outputDir'));
+    const outputDir = settings.get('outputDir');
+
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        return loadRecording(outputDir, recordingId, project);
+      }
+    }
+
+    // Fallback for legacy recordings (no project)
+    return loadRecording(outputDir, recordingId);
   });
 
-  ipcMain.handle('load-recording', (event, recordingId) => {
+  ipcMain.handle('delete-recording', (event, recordingId, projectId) => {
     const settings = getSettingsStore();
-    return loadRecording(settings.get('outputDir'), recordingId);
-  });
+    const outputDir = settings.get('outputDir');
 
-  ipcMain.handle('delete-recording', (event, recordingId) => {
-    const settings = getSettingsStore();
     try {
-      deleteRecording(settings.get('outputDir'), recordingId);
+      if (projectId) {
+        const project = getProject(outputDir, projectId);
+        if (project) {
+          deleteRecording(outputDir, recordingId, project);
+          removeRecordingFromProject(outputDir, projectId, recordingId);
+          return { success: true };
+        }
+      }
+
+      // Fallback for legacy recordings
+      deleteRecording(outputDir, recordingId);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -200,14 +364,35 @@ function registerIpcHandlers() {
 
   // ===== Markdown Editor =====
 
-  ipcMain.handle('get-recording-markdown', (event, recordingId) => {
+  ipcMain.handle('get-recording-markdown', (event, recordingId, projectId) => {
     const settings = getSettingsStore();
-    return loadRecordingMarkdown(settings.get('outputDir'), recordingId);
+    const outputDir = settings.get('outputDir');
+
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        // Pass full project object so getProjectFolderPath can use the custom folder
+        return loadRecordingMarkdown(outputDir, recordingId, project);
+      }
+    }
+
+    // Fallback for legacy recordings
+    return loadRecordingMarkdown(outputDir, recordingId);
   });
 
-  ipcMain.handle('save-recording-markdown', (event, recordingId, content) => {
+  ipcMain.handle('save-recording-markdown', (event, recordingId, content, projectId) => {
     const settings = getSettingsStore();
-    return saveRecordingMarkdown(settings.get('outputDir'), recordingId, content);
+    const outputDir = settings.get('outputDir');
+
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        return saveRecordingMarkdown(outputDir, recordingId, content, project);
+      }
+    }
+
+    // Fallback for legacy recordings
+    return saveRecordingMarkdown(outputDir, recordingId, content);
   });
 
   ipcMain.handle('select-output-dir', async () => {
@@ -242,11 +427,34 @@ function registerIpcHandlers() {
     return { success: false };
   });
 
+  ipcMain.handle('select-project-folder', async () => {
+    const settings = getSettingsStore();
+    const result = await dialog.showOpenDialog({
+      defaultPath: settings.get('outputDir'),
+      properties: ['openDirectory', 'createDirectory']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, path: result.filePaths[0] };
+    }
+    return { success: false };
+  });
+
   // ===== Refetch =====
 
-  ipcMain.handle('save-refetched-screenshot', async (event, { recordingId, filename, imageDataUrl }) => {
+  ipcMain.handle('save-refetched-screenshot', async (event, { recordingId, filename, imageDataUrl, projectId }) => {
     const settings = getSettingsStore();
-    const screenshotsDir = path.join(settings.get('outputDir'), recordingId, 'screenshots');
+    const outputDir = settings.get('outputDir');
+
+    let baseDir = outputDir;
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        baseDir = getProjectFolderPath(outputDir, project);
+      }
+    }
+
+    const screenshotsDir = path.join(baseDir, recordingId, 'screenshots');
 
     try {
       // Convert data URL to buffer
@@ -261,9 +469,19 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle('regenerate-markdown', async (event, recordingId) => {
+  ipcMain.handle('regenerate-markdown', async (event, recordingId, projectId) => {
     const settings = getSettingsStore();
-    const recordingDir = path.join(settings.get('outputDir'), recordingId);
+    const outputDir = settings.get('outputDir');
+
+    let baseDir = outputDir;
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        baseDir = getProjectFolderPath(outputDir, project);
+      }
+    }
+
+    const recordingDir = path.join(baseDir, recordingId);
     const actionsPath = path.join(recordingDir, 'actions.json');
 
     try {
@@ -290,11 +508,20 @@ function registerIpcHandlers() {
 
   // ===== Screenshot Editor =====
 
-  ipcMain.handle('get-screenshot-path', (event, recordingId, filename) => {
+  ipcMain.handle('get-screenshot-path', (event, recordingId, filename, projectId) => {
     const settings = getSettingsStore();
     const outputDir = settings.get('outputDir');
-    const screenshotPath = path.join(outputDir, recordingId, 'screenshots', filename);
-    const actionsPath = path.join(outputDir, recordingId, 'actions.json');
+
+    let baseDir = outputDir;
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        baseDir = getProjectFolderPath(outputDir, project);
+      }
+    }
+
+    const screenshotPath = path.join(baseDir, recordingId, 'screenshots', filename);
+    const actionsPath = path.join(baseDir, recordingId, 'actions.json');
     const fs = require('fs');
 
     if (!fs.existsSync(screenshotPath)) {
@@ -323,10 +550,19 @@ function registerIpcHandlers() {
     return { success: true, path: screenshotPath, blurRegions, annotations };
   });
 
-  ipcMain.handle('save-screenshot-edits', async (event, { recordingId, filename, blurRegions, annotations }) => {
+  ipcMain.handle('save-screenshot-edits', async (event, { recordingId, filename, blurRegions, annotations, projectId }) => {
     const settings = getSettingsStore();
     const outputDir = settings.get('outputDir');
-    const recordingDir = path.join(outputDir, recordingId);
+
+    let baseDir = outputDir;
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        baseDir = getProjectFolderPath(outputDir, project);
+      }
+    }
+
+    const recordingDir = path.join(baseDir, recordingId);
     const screenshotsDir = path.join(recordingDir, 'screenshots');
     const originalsDir = path.join(recordingDir, 'screenshots-original');
     const screenshotPath = path.join(screenshotsDir, filename);
@@ -419,10 +655,19 @@ function registerIpcHandlers() {
   });
 
   // Reset screenshot to original (remove all edits)
-  ipcMain.handle('reset-screenshot-to-original', async (event, { recordingId, filename }) => {
+  ipcMain.handle('reset-screenshot-to-original', async (event, { recordingId, filename, projectId }) => {
     const settings = getSettingsStore();
     const outputDir = settings.get('outputDir');
-    const recordingDir = path.join(outputDir, recordingId);
+
+    let baseDir = outputDir;
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        baseDir = getProjectFolderPath(outputDir, project);
+      }
+    }
+
+    const recordingDir = path.join(baseDir, recordingId);
     const screenshotsDir = path.join(recordingDir, 'screenshots');
     const originalsDir = path.join(recordingDir, 'screenshots-original');
     const screenshotPath = path.join(screenshotsDir, filename);
@@ -471,12 +716,52 @@ function registerIpcHandlers() {
 
   // ===== Utility =====
 
-  ipcMain.handle('open-recording-folder', async (event, recordingId) => {
+  ipcMain.handle('open-recording-folder', async (event, recordingId, projectId) => {
     const settings = getSettingsStore();
-    const recordingDir = path.join(settings.get('outputDir'), recordingId);
+    const outputDir = settings.get('outputDir');
+
+    let baseDir = outputDir;
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        baseDir = getProjectFolderPath(outputDir, project);
+      }
+    }
+
+    const recordingDir = path.join(baseDir, recordingId);
     const { shell } = require('electron');
     await shell.openPath(recordingDir);
     return { success: true };
+  });
+
+  ipcMain.handle('open-project-folder', async (event, projectId) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const project = getProject(outputDir, projectId);
+
+    if (!project) {
+      return { success: false, error: 'Project not found' };
+    }
+
+    const projectDir = getProjectFolderPath(outputDir, project);
+    const { shell } = require('electron');
+    await shell.openPath(projectDir);
+    return { success: true };
+  });
+
+  // ===== Bulk Refetch =====
+
+  // This is a placeholder - the actual bulk refetch is orchestrated from the renderer
+  // since it needs webview access. This just provides project recording list.
+  ipcMain.handle('get-refetch-queue', async (event, projectId) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+
+    const recordings = getProjectRecordings(outputDir, projectId);
+    return recordings.map(r => ({
+      id: r.id,
+      title: r.title
+    }));
   });
 }
 

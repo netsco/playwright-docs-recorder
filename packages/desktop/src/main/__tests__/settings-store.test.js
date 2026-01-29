@@ -46,12 +46,15 @@ describe('settings-store logic', () => {
 
   describe('default settings', () => {
     const defaults = {
-      viewport: { width: 1280, height: 720 },
+      viewport: { width: 1680, height: 950 },
       viewportPresets: [
-        { name: 'HD (1280x720)', width: 1280, height: 720 },
-        { name: 'Full HD (1920x1080)', width: 1920, height: 1080 },
+        { name: 'WSXGA+ (1680x950)', width: 1680, height: 950 },
+        { name: 'Full HD (1920x980)', width: 1920, height: 980 },
+        { name: 'HD (1280x620)', width: 1280, height: 620 },
         { name: 'Mobile (375x667)', width: 375, height: 667 },
-        { name: 'Tablet (768x1024)', width: 768, height: 1024 }
+        { name: 'Mobile Landscape (667x375)', width: 667, height: 375 },
+        { name: 'Tablet (768x1024)', width: 768, height: 1024 },
+        { name: 'Tablet Landscape (1024x768)', width: 1024, height: 768 }
       ],
       recentUrls: [],
       windowBounds: { width: 1400, height: 900 },
@@ -61,11 +64,11 @@ describe('settings-store logic', () => {
     };
 
     it('has correct default viewport', () => {
-      expect(defaults.viewport).toEqual({ width: 1280, height: 720 });
+      expect(defaults.viewport).toEqual({ width: 1680, height: 950 });
     });
 
-    it('has 4 viewport presets', () => {
-      expect(defaults.viewportPresets).toHaveLength(4);
+    it('has 7 viewport presets', () => {
+      expect(defaults.viewportPresets).toHaveLength(7);
     });
 
     it('has empty recent URLs by default', () => {

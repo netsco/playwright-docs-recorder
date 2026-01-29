@@ -13,12 +13,15 @@ function initSettingsStore() {
     name: 'settings',
     defaults: {
       outputDir: path.join(app.getPath('documents'), 'DocRecorder'),
-      viewport: { width: 1280, height: 720 },
+      viewport: { width: 1680, height: 950 },
       viewportPresets: [
-        { name: 'HD (1280x720)', width: 1280, height: 720 },
-        { name: 'Full HD (1920x1080)', width: 1920, height: 1080 },
+        { name: 'WSXGA+ (1680x950)', width: 1680, height: 950 },
+        { name: 'Full HD (1920x980)', width: 1920, height: 980 },
+        { name: 'HD (1280x620)', width: 1280, height: 620 },
         { name: 'Mobile (375x667)', width: 375, height: 667 },
-        { name: 'Tablet (768x1024)', width: 768, height: 1024 }
+        { name: 'Mobile Landscape (667x375)', width: 667, height: 375 },
+        { name: 'Tablet (768x1024)', width: 768, height: 1024 },
+        { name: 'Tablet Landscape (1024x768)', width: 1024, height: 768 }
       ],
       recentUrls: [],
       windowBounds: { width: 1400, height: 900 },
@@ -26,7 +29,8 @@ function initSettingsStore() {
       showLog: false,
       showShortcuts: true,
       injectCSS: false,
-      customCSS: ''
+      customCSS: '',
+      lastOpenedProjectId: null
     }
   });
   return store;
@@ -55,8 +59,28 @@ function addRecentUrl(url) {
   store.set('recentUrls', filtered.slice(0, 10));
 }
 
+/**
+ * Get the last opened project ID
+ * @returns {string|null}
+ */
+function getLastOpenedProjectId() {
+  const store = getSettingsStore();
+  return store.get('lastOpenedProjectId', null);
+}
+
+/**
+ * Set the last opened project ID
+ * @param {string|null} projectId
+ */
+function setLastOpenedProjectId(projectId) {
+  const store = getSettingsStore();
+  store.set('lastOpenedProjectId', projectId);
+}
+
 module.exports = {
   initSettingsStore,
   getSettingsStore,
-  addRecentUrl
+  addRecentUrl,
+  getLastOpenedProjectId,
+  setLastOpenedProjectId
 };

@@ -22,6 +22,7 @@
   /* Custom animations */
   --animate-pulse-recording: pulse-recording 1.5s ease-in-out infinite;
   --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-fade-out: fade-out 0.2s ease-out forwards;
   --animate-slide-up: slide-up 0.3s ease-out;
 
   @keyframes pulse-recording {
@@ -30,8 +31,13 @@
   }
 
   @keyframes fade-in {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-out {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-8px); }
   }
 
   @keyframes slide-up {
@@ -94,6 +100,17 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
 }
 
+/* Select dropdown styling - custom caret */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.5rem !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+}
+
 /* Subtle noise texture overlay */
 .noise-overlay::before {
   content: '';
@@ -102,4 +119,132 @@ input:focus, select:focus, textarea:focus {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   opacity: 0.02;
   pointer-events: none;
+}
+
+/* Collapsible sidebar */
+#sidebar.collapsed {
+  width: 52px;
+  min-width: 52px;
+}
+
+#sidebar.collapsed .sidebar-content {
+  display: none !important;
+}
+
+/* Project header in collapsed state - minimal vertical layout */
+#sidebar.collapsed #projectHeader {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+#sidebar.collapsed #projectHeader > div {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Hide text and some buttons in collapsed state */
+#sidebar.collapsed #projectHeaderName,
+#sidebar.collapsed #sidebarCollapseBtn {
+  display: none !important;
+}
+
+/* Back button stays visible at top */
+#sidebar.collapsed #backToProjectsBtn {
+  order: 1;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(51, 65, 85, 0.3);
+  border-radius: 8px;
+}
+
+/* Project color dot - larger and more prominent */
+#sidebar.collapsed #projectColorDot {
+  order: 2;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Edit button - styled consistently */
+#sidebar.collapsed #editProjectBtn {
+  order: 3;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* Recordings header in collapsed state */
+#sidebar.collapsed #recordingsHeader {
+  padding: 12px 0;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+#sidebar.collapsed #recordingsHeader > div:first-child {
+  display: none !important;
+}
+
+#sidebar.collapsed #recordingsHeader > div:last-child {
+  flex-direction: column;
+  width: 100%;
+  gap: 6px;
+  align-items: center;
+}
+
+#sidebar.collapsed #refetchAllBtn,
+#sidebar.collapsed #newRecordingBtn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(51, 65, 85, 0.3);
+}
+
+#sidebar.collapsed #refetchAllBtn:hover,
+#sidebar.collapsed #newRecordingBtn:hover {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+/* Expand button - shown at top when collapsed */
+#sidebar.collapsed #sidebarExpandBtn {
+  display: flex !important;
+  order: -1;
+  width: 36px;
+  height: 36px;
+  margin: 12px auto 8px auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(51, 65, 85, 0.3);
+}
+
+#sidebar.collapsed #sidebarExpandBtn:hover {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+/* Project avatar with initials */
+#projectColorDot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 10px;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+#sidebar.collapsed #projectColorDot {
+  font-size: 12px;
 }

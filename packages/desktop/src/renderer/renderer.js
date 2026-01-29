@@ -1,6 +1,7 @@
 /* global marked */
 
 // DOM Elements
+const sidebar = document.getElementById('sidebar');
 const historyList = document.getElementById('historyList');
 const webview = document.getElementById('webview');
 const webviewContainer = document.getElementById('webviewContainer');
@@ -31,13 +32,73 @@ const cancelNote = document.getElementById('cancelNote');
 const saveNote = document.getElementById('saveNote');
 const mdToolbar = document.querySelector('.md-toolbar');
 
-// Welcome panel elements
+// Project list elements
+const projectListPanel = document.getElementById('projectListPanel');
+const projectGrid = document.getElementById('projectGrid');
+const newProjectBtn = document.getElementById('newProjectBtn');
+
+// Project header elements (sidebar)
+const projectHeader = document.getElementById('projectHeader');
+const recordingsHeader = document.getElementById('recordingsHeader');
+const backToProjectsBtn = document.getElementById('backToProjectsBtn');
+const projectColorDot = document.getElementById('projectColorDot');
+const projectInitials = document.getElementById('projectInitials');
+const projectHeaderName = document.getElementById('projectHeaderName');
+const editProjectBtn = document.getElementById('editProjectBtn');
+const refetchAllBtn = document.getElementById('refetchAllBtn');
+const historySection = document.getElementById('historySection');
+const sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
+const sidebarExpandBtn = document.getElementById('sidebarExpandBtn');
+
+// Project modal elements
+const projectModal = document.getElementById('projectModal');
+const projectModalTitle = document.getElementById('projectModalTitle');
+const projectNameInput = document.getElementById('projectNameInput');
+const projectFolderInput = document.getElementById('projectFolderInput');
+const projectBrowseFolder = document.getElementById('projectBrowseFolder');
+const projectDescInput = document.getElementById('projectDescInput');
+const projectColorPicker = document.getElementById('projectColorPicker');
+const projectSiteUrl = document.getElementById('projectSiteUrl');
+const projectViewportPreset = document.getElementById('projectViewportPreset');
+const projectCustomViewport = document.getElementById('projectCustomViewport');
+const projectViewportWidth = document.getElementById('projectViewportWidth');
+const projectViewportHeight = document.getElementById('projectViewportHeight');
+const projectInjectCSS = document.getElementById('projectInjectCSS');
+const projectCSSOptions = document.getElementById('projectCSSOptions');
+const projectCustomCSS = document.getElementById('projectCustomCSS');
+const closeProjectModal = document.getElementById('closeProjectModal');
+const cancelProjectBtn = document.getElementById('cancelProjectBtn');
+const saveProjectBtn = document.getElementById('saveProjectBtn');
+const deleteProjectBtn = document.getElementById('deleteProjectBtn');
+
+// Move recording modal elements
+const moveRecordingModal = document.getElementById('moveRecordingModal');
+const closeMoveModal = document.getElementById('closeMoveModal');
+const moveProjectList = document.getElementById('moveProjectList');
+
+// Refetch progress modal elements
+const refetchProgressModal = document.getElementById('refetchProgressModal');
+const refetchModalTitle = document.getElementById('refetchModalTitle');
+const refetchProgressView = document.getElementById('refetchProgressView');
+const refetchProgressText = document.getElementById('refetchProgressText');
+const refetchProgressCount = document.getElementById('refetchProgressCount');
+const refetchProgressBar = document.getElementById('refetchProgressBar');
+const refetchCurrentItem = document.getElementById('refetchCurrentItem');
+const refetchSummaryView = document.getElementById('refetchSummaryView');
+const refetchSummaryIcon = document.getElementById('refetchSummaryIcon');
+const refetchSummaryText = document.getElementById('refetchSummaryText');
+const refetchSummaryDetails = document.getElementById('refetchSummaryDetails');
+const refetchErrorList = document.getElementById('refetchErrorList');
+const refetchErrorItems = document.getElementById('refetchErrorItems');
+const cancelRefetchBtn = document.getElementById('cancelRefetchBtn');
+const doneRefetchBtn = document.getElementById('doneRefetchBtn');
+
+// Welcome panel elements (new recording form)
 const welcomePanel = document.getElementById('welcomePanel');
 const welcomeUrl = document.getElementById('welcomeUrl');
 const welcomeRecentUrls = document.getElementById('welcomeRecentUrls');
 const welcomeTitle = document.getElementById('welcomeTitle');
 const welcomeOutputDir = document.getElementById('welcomeOutputDir');
-const welcomeBrowseDir = document.getElementById('welcomeBrowseDir');
 const welcomeViewportPreset = document.getElementById('welcomeViewportPreset');
 const customViewportInputs = document.getElementById('customViewportInputs');
 const welcomeViewportWidth = document.getElementById('welcomeViewportWidth');
@@ -49,6 +110,13 @@ const welcomeCustomCSS = document.getElementById('welcomeCustomCSS');
 const welcomeLoadCssFile = document.getElementById('welcomeLoadCssFile');
 const welcomeRecordActions = document.getElementById('welcomeRecordActions');
 const welcomeStartBtn = document.getElementById('welcomeStartBtn');
+const projectDefaultsInfo = document.getElementById('projectDefaultsInfo');
+const customizeSettingsBtn = document.getElementById('customizeSettingsBtn');
+const useDefaultsBtn = document.getElementById('useDefaultsBtn');
+const customSettingsSection = document.getElementById('customSettingsSection');
+const defaultViewportDisplay = document.getElementById('defaultViewportDisplay');
+const defaultSeparatorDisplay = document.getElementById('defaultSeparatorDisplay');
+const defaultCSSDisplay = document.getElementById('defaultCSSDisplay');
 
 // Shortcuts panel
 const shortcutsPanel = document.getElementById('shortcutsPanel');
@@ -79,13 +147,21 @@ const toggleShortcutsBtn = document.getElementById('toggleShortcutsBtn');
 let isRecording = false;
 let currentSettings = null;
 let pendingScreenshot = null;
-// eslint-disable-next-line no-unused-vars -- reserved for future use
-let _currentRecordingId = null;
 let activeHistoryId = null;
+let currentRecordActions = true; // Track recordActions for re-sync after navigation
+let currentCustomCSS = ''; // Track custom CSS for re-sync after navigation
 let editorOriginalContent = '';
-// eslint-disable-next-line no-unused-vars -- reserved for future use
-let _editorFilePath = '';
 let editorRecordingDir = '';
+
+// Project state
+let allProjects = [];
+let currentProjectId = null;
+let currentProject = null;
+let editingProjectId = null; // For project modal
+let selectedProjectColor = '#14b8a6';
+let useCustomSettings = false; // For new recording form
+let pendingMoveRecordingId = null; // For move recording modal
+let refetchCancelled = false; // For bulk refetch
 
 // ===== Undo/Redo Manager =====
 
@@ -142,6 +218,16 @@ class UndoManager {
 const editorUndoManager = new UndoManager();
 const noteUndoManager = new UndoManager();
 
+// Get initials from project name (up to 2 characters)
+function getProjectInitials(name) {
+  if (!name) return '';
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+}
+
 // Debounce helper for input tracking
 function debounce(fn, delay) {
   let timer = null;
@@ -193,10 +279,18 @@ async function init() {
 
     updateViewportInfo();
     populateViewportPresets();
-    loadHistory();
 
-    // Populate welcome panel with settings
-    populateWelcomePanel();
+    // Load projects and show project list
+    await loadProjects();
+
+    // Setup project modal event handlers
+    setupProjectModalHandlers();
+
+    // Setup move recording modal handlers
+    setupMoveRecordingModalHandlers();
+
+    // Setup refetch handlers
+    setupRefetchHandlers();
 
     // Set webview size based on viewport
     updateWebviewSize();
@@ -211,21 +305,717 @@ async function init() {
   }
 }
 
+// ===== Project Management =====
+
+async function loadProjects() {
+  const data = await window.electronAPI.getProjects();
+  allProjects = data.projects || [];
+
+  // Check if we should auto-open last project
+  if (data.lastOpenedProjectId) {
+    const lastProject = allProjects.find(p => p.id === data.lastOpenedProjectId);
+    if (lastProject) {
+      await selectProject(lastProject);
+      return;
+    }
+  }
+
+  // Show project list
+  showProjectList();
+}
+
+// Helper to check if editor has unsaved changes and confirm leaving
+function isEditorDirty() {
+  return editorPanel.style.display !== 'none' && editorTextarea.value !== editorOriginalContent;
+}
+
+function confirmLeaveEditor() {
+  if (isEditorDirty()) {
+    return confirm('You have unsaved changes. Discard them?');
+  }
+  return true;
+}
+
+function showProjectList() {
+  if (!confirmLeaveEditor()) return;
+
+  currentProjectId = null;
+  currentProject = null;
+
+  // Reset window title
+  document.title = 'Documentation Recorder';
+
+  // Hide other panels
+  welcomePanel.style.display = 'none';
+  editorPanel.style.display = 'none';
+  webviewContainer.classList.add('hidden');
+  toolbar.style.display = 'none';
+
+  // Hide sidebar completely on projects landing page
+  sidebar.style.display = 'none';
+
+  // Show project list
+  projectListPanel.style.display = '';
+  renderProjectList();
+
+  // Update status
+  statusText.textContent = 'Select a project';
+}
+
+function renderProjectList() {
+  if (!allProjects || allProjects.length === 0) {
+    projectGrid.innerHTML = `
+      <div class="text-center py-16 col-span-2 text-slate-600">
+        <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+        </svg>
+        <p class="text-sm">No projects yet</p>
+        <p class="text-xs mt-1">Create a project to organize your recordings</p>
+      </div>
+    `;
+    return;
+  }
+
+  projectGrid.innerHTML = allProjects.map(project => {
+    const lastModified = new Date(project.updatedAt).toLocaleDateString();
+    return `
+      <div class="group p-4 rounded-xl bg-slate-800/30 hover:bg-slate-800/50 border border-slate-700/30 hover:border-slate-600/50 cursor-pointer transition-all" data-project-id="${project.id}">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full" style="background-color: ${project.color}"></div>
+            <h3 class="font-medium text-slate-200">${escapeHtml(project.name)}</h3>
+          </div>
+          <div class="flex items-center gap-1">
+            <button class="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-slate-700 text-slate-500 hover:text-slate-300 transition-all" data-action="open-folder" title="Open folder">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+              </svg>
+            </button>
+            <button class="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-slate-700 text-slate-500 hover:text-slate-300 transition-all" data-action="edit-project" title="Edit project">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        ${project.description ? `<p class="text-xs text-slate-500 mb-3 line-clamp-2">${escapeHtml(project.description)}</p>` : ''}
+        <div class="flex items-center gap-3 text-xs text-slate-600">
+          <span>Modified ${lastModified}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function selectProject(project) {
+  currentProjectId = project.id;
+  currentProject = project;
+
+  // Save as last opened
+  await window.electronAPI.setLastOpenedProject(project.id);
+
+  // Hide project list
+  projectListPanel.style.display = 'none';
+
+  // Show sidebar (expanded by default)
+  sidebar.style.display = '';
+  sidebar.classList.remove('collapsed');
+  sidebarExpandBtn.style.display = 'none';
+
+  // Update sidebar
+  projectHeader.style.display = '';
+  recordingsHeader.style.display = '';
+  historySection.style.display = '';
+  projectColorDot.style.backgroundColor = project.color;
+  projectInitials.textContent = getProjectInitials(project.name);
+  projectHeaderName.textContent = project.name;
+  document.title = `${project.name} - Documentation Recorder`;
+
+  // Load project recordings
+  await loadProjectRecordings();
+
+  // Show welcome panel (new recording form)
+  showWelcomePanel();
+}
+
+async function loadProjectRecordings() {
+  if (!currentProjectId) return;
+
+  const recordings = await window.electronAPI.getProjectRecordings(currentProjectId);
+  renderHistory(recordings);
+}
+
+// Project list click handler
+projectGrid.addEventListener('click', async (e) => {
+  const projectCard = e.target.closest('[data-project-id]');
+  if (!projectCard) return;
+
+  const projectId = projectCard.dataset.projectId;
+  const editBtn = e.target.closest('[data-action="edit-project"]');
+  const openFolderBtn = e.target.closest('[data-action="open-folder"]');
+
+  if (openFolderBtn) {
+    e.stopPropagation();
+    await window.electronAPI.openProjectFolder(projectId);
+    return;
+  }
+
+  if (editBtn) {
+    e.stopPropagation();
+    openProjectModal(projectId);
+    return;
+  }
+
+  // Select the project
+  const project = allProjects.find(p => p.id === projectId);
+  if (project) {
+    await selectProject(project);
+  }
+});
+
+// New project button
+if (newProjectBtn) {
+  newProjectBtn.addEventListener('click', () => {
+    openProjectModal(null);
+  });
+}
+
+// Back to projects button
+if (backToProjectsBtn) {
+  backToProjectsBtn.addEventListener('click', async () => {
+    await window.electronAPI.setLastOpenedProject(null);
+    showProjectList();
+  });
+}
+
+// Edit project button (in sidebar header)
+if (editProjectBtn) {
+  editProjectBtn.addEventListener('click', () => {
+    if (currentProjectId) {
+      openProjectModal(currentProjectId);
+    }
+  });
+}
+
+// Sidebar collapse/expand
+function collapseSidebar() {
+  sidebar.classList.add('collapsed');
+  sidebarExpandBtn.style.display = '';
+}
+
+function expandSidebar() {
+  sidebar.classList.remove('collapsed');
+  sidebarExpandBtn.style.display = 'none';
+}
+
+if (sidebarCollapseBtn) {
+  sidebarCollapseBtn.addEventListener('click', collapseSidebar);
+}
+
+if (sidebarExpandBtn) {
+  sidebarExpandBtn.addEventListener('click', expandSidebar);
+}
+
+// ===== Project Modal =====
+
+function openProjectModal(projectId = null) {
+  editingProjectId = projectId;
+
+  if (projectId) {
+    // Edit mode
+    const project = allProjects.find(p => p.id === projectId);
+    if (!project) return;
+
+    projectModalTitle.textContent = 'Edit Project';
+    projectNameInput.value = project.name;
+    projectFolderInput.value = project.folder || '';
+    projectFolderInput.disabled = true; // Cannot change folder after creation
+    projectBrowseFolder.disabled = true;
+    projectBrowseFolder.style.opacity = '0.5';
+    projectDescInput.value = project.description || '';
+    selectedProjectColor = project.color;
+
+    // Set viewport
+    const vp = project.settings?.viewport || { width: 1680, height: 950 };
+    const presetValue = `${vp.width}x${vp.height}`;
+    const presetOption = projectViewportPreset.querySelector(`option[value="${presetValue}"]`);
+    if (presetOption) {
+      projectViewportPreset.value = presetValue;
+      projectCustomViewport.style.display = 'none';
+    } else {
+      projectViewportPreset.value = 'custom';
+      projectCustomViewport.style.display = 'flex';
+      projectViewportWidth.value = vp.width;
+      projectViewportHeight.value = vp.height;
+    }
+
+    // Set site URL
+    projectSiteUrl.value = project.settings?.siteUrl || '';
+
+    // Set CSS injection
+    projectInjectCSS.checked = project.settings?.injectCSS || false;
+    projectCustomCSS.value = project.settings?.customCSS || '';
+    projectCSSOptions.style.display = projectInjectCSS.checked ? 'block' : 'none';
+
+    saveProjectBtn.textContent = 'Save Changes';
+    deleteProjectBtn.style.display = '';
+  } else {
+    // Create mode
+    projectModalTitle.textContent = 'New Project';
+    projectNameInput.value = '';
+    projectNameInput.disabled = false;
+    projectNameInput.readOnly = false;
+    projectFolderInput.value = '';
+    projectFolderInput.disabled = false;
+    projectBrowseFolder.disabled = false;
+    projectBrowseFolder.style.opacity = '1';
+    projectDescInput.value = '';
+    selectedProjectColor = '#14b8a6';
+    projectSiteUrl.value = '';
+    projectViewportPreset.value = '1680x950';
+    projectCustomViewport.style.display = 'none';
+    projectViewportWidth.value = '';
+    projectViewportHeight.value = '';
+    projectInjectCSS.checked = false;
+    projectCustomCSS.value = '';
+    projectCSSOptions.style.display = 'none';
+    saveProjectBtn.textContent = 'Create Project';
+    deleteProjectBtn.style.display = 'none';
+  }
+
+  // Update color picker selection
+  updateColorPickerSelection();
+
+  projectModal.style.display = 'flex';
+
+  // Use setTimeout to ensure focus works after confirm dialogs
+  setTimeout(() => {
+    projectNameInput.focus();
+  }, 50);
+}
+
+function closeProjectModalFn() {
+  projectModal.style.display = 'none';
+  editingProjectId = null;
+}
+
+function updateColorPickerSelection() {
+  const buttons = projectColorPicker.querySelectorAll('button');
+  buttons.forEach(btn => {
+    const isSelected = btn.dataset.color === selectedProjectColor;
+    btn.classList.toggle('ring-white', isSelected);
+    btn.classList.toggle('ring-offset-2', isSelected);
+    btn.classList.toggle('ring-offset-slate-900', isSelected);
+  });
+}
+
+function setupProjectModalHandlers() {
+  // Color picker
+  projectColorPicker.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-color]');
+    if (btn) {
+      selectedProjectColor = btn.dataset.color;
+      updateColorPickerSelection();
+    }
+  });
+
+  // Folder browse button
+  projectBrowseFolder.addEventListener('click', async () => {
+    const result = await window.electronAPI.selectProjectFolder();
+    if (result.success) {
+      projectFolderInput.value = result.path;
+    }
+  });
+
+  // Viewport preset change
+  projectViewportPreset.addEventListener('change', () => {
+    projectCustomViewport.style.display = projectViewportPreset.value === 'custom' ? 'flex' : 'none';
+  });
+
+  // CSS injection toggle
+  projectInjectCSS.addEventListener('change', () => {
+    projectCSSOptions.style.display = projectInjectCSS.checked ? 'block' : 'none';
+  });
+
+  // Close modal
+  closeProjectModal.addEventListener('click', closeProjectModalFn);
+  cancelProjectBtn.addEventListener('click', closeProjectModalFn);
+
+  // Save project
+  saveProjectBtn.addEventListener('click', async () => {
+    const name = projectNameInput.value.trim();
+    if (!name) {
+      projectNameInput.focus();
+      return;
+    }
+
+    const folder = projectFolderInput.value.trim();
+    if (!editingProjectId && !folder) {
+      // Folder required for new projects
+      statusText.textContent = 'Please select a project folder';
+      projectBrowseFolder.focus();
+      return;
+    }
+
+    // Get viewport settings
+    let viewport = { width: 1680, height: 950 };
+    if (projectViewportPreset.value === 'custom') {
+      viewport = {
+        width: parseInt(projectViewportWidth.value) || 1280,
+        height: parseInt(projectViewportHeight.value) || 720
+      };
+    } else {
+      const [w, h] = projectViewportPreset.value.split('x').map(Number);
+      viewport = { width: w, height: h };
+    }
+
+    const projectData = {
+      name,
+      folder,
+      description: projectDescInput.value.trim(),
+      color: selectedProjectColor,
+      settings: {
+        siteUrl: projectSiteUrl.value.trim(),
+        viewport,
+        injectCSS: projectInjectCSS.checked,
+        customCSS: projectInjectCSS.checked ? projectCustomCSS.value : ''
+      }
+    };
+
+    try {
+      if (editingProjectId) {
+        const result = await window.electronAPI.updateProject(editingProjectId, projectData);
+        if (result.success) {
+          // Update local data
+          const idx = allProjects.findIndex(p => p.id === editingProjectId);
+          if (idx !== -1) allProjects[idx] = result.project;
+          if (currentProjectId === editingProjectId) {
+            currentProject = result.project;
+            projectColorDot.style.backgroundColor = result.project.color;
+            projectInitials.textContent = getProjectInitials(result.project.name);
+            projectHeaderName.textContent = result.project.name;
+            document.title = `${result.project.name} - Documentation Recorder`;
+          }
+          statusText.textContent = 'Project updated';
+        } else {
+          statusText.textContent = result.error || 'Failed to update project';
+          return;
+        }
+      } else {
+        const result = await window.electronAPI.createProject(projectData);
+        if (result.success) {
+          allProjects.push(result.project);
+          // Auto-select the new project
+          await selectProject(result.project);
+          statusText.textContent = 'Project created';
+        } else {
+          statusText.textContent = result.error || 'Failed to create project';
+          return;
+        }
+      }
+
+      closeProjectModalFn();
+      if (!currentProjectId) {
+        renderProjectList();
+      }
+    } catch (error) {
+      statusText.textContent = `Error: ${error.message}`;
+    }
+  });
+
+  // Delete project
+  deleteProjectBtn.addEventListener('click', async () => {
+    if (!editingProjectId) return;
+
+    const project = allProjects.find(p => p.id === editingProjectId);
+    if (!confirm(`Delete project "${project?.name}"? All recordings will be permanently deleted.`)) {
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.deleteProject(editingProjectId);
+      if (result.success) {
+        allProjects = allProjects.filter(p => p.id !== editingProjectId);
+        closeProjectModalFn();
+
+        if (currentProjectId === editingProjectId) {
+          showProjectList();
+        } else {
+          renderProjectList();
+        }
+
+        statusText.textContent = 'Project deleted';
+      } else {
+        statusText.textContent = result.error || 'Failed to delete project';
+      }
+    } catch (error) {
+      statusText.textContent = `Error: ${error.message}`;
+    }
+  });
+}
+
+// ===== Move Recording Modal =====
+
+function openMoveRecordingModal(recordingId) {
+  pendingMoveRecordingId = recordingId;
+
+  // Render project list (excluding current project)
+  const otherProjects = allProjects.filter(p => p.id !== currentProjectId);
+
+  if (otherProjects.length === 0) {
+    moveProjectList.innerHTML = `
+      <div class="text-center py-4 text-slate-500 text-sm">
+        No other projects available. Create another project first.
+      </div>
+    `;
+  } else {
+    moveProjectList.innerHTML = otherProjects.map(project => `
+      <button class="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 border border-slate-700/30 text-left transition-all" data-move-to="${project.id}">
+        <div class="w-3 h-3 rounded-full" style="background-color: ${project.color}"></div>
+        <span class="text-sm text-slate-200">${escapeHtml(project.name)}</span>
+      </button>
+    `).join('');
+  }
+
+  moveRecordingModal.style.display = 'flex';
+}
+
+function closeMoveRecordingModalFn() {
+  moveRecordingModal.style.display = 'none';
+  pendingMoveRecordingId = null;
+}
+
+function setupMoveRecordingModalHandlers() {
+  closeMoveModal.addEventListener('click', closeMoveRecordingModalFn);
+
+  moveProjectList.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-move-to]');
+    if (!btn || !pendingMoveRecordingId) return;
+
+    const toProjectId = btn.dataset.moveTo;
+
+    try {
+      const result = await window.electronAPI.moveRecording(
+        pendingMoveRecordingId,
+        currentProjectId,
+        toProjectId
+      );
+
+      if (result.success) {
+        await loadProjectRecordings();
+        closeMoveRecordingModalFn();
+        statusText.textContent = 'Recording moved';
+      } else {
+        statusText.textContent = result.error || 'Failed to move recording';
+      }
+    } catch (error) {
+      statusText.textContent = `Error: ${error.message}`;
+    }
+  });
+}
+
+// ===== Bulk Refetch =====
+
+// Track refetch state for modal
+let refetchResultCallback = null;
+
+function setupRefetchHandlers() {
+  if (refetchAllBtn) {
+    refetchAllBtn.addEventListener('click', startBulkRefetch);
+  }
+
+  if (cancelRefetchBtn) {
+    cancelRefetchBtn.addEventListener('click', () => {
+      refetchCancelled = true;
+    });
+  }
+
+  if (doneRefetchBtn) {
+    doneRefetchBtn.addEventListener('click', () => {
+      refetchProgressModal.style.display = 'none';
+      if (refetchResultCallback) {
+        refetchResultCallback();
+        refetchResultCallback = null;
+      }
+    });
+  }
+}
+
+function showRefetchModal(title) {
+  refetchModalTitle.textContent = title;
+  refetchProgressView.style.display = '';
+  refetchSummaryView.style.display = 'none';
+  cancelRefetchBtn.style.display = '';
+  doneRefetchBtn.style.display = 'none';
+  refetchProgressText.textContent = 'Processing...';
+  refetchProgressCount.textContent = '0 / 0';
+  refetchProgressBar.style.width = '0%';
+  refetchCurrentItem.textContent = '-';
+  refetchProgressModal.style.display = 'flex';
+}
+
+function showRefetchSummary(success, total, failed, errors = [], onDone = null, options = {}) {
+  const { screenshotCount = 0, isBulk = false } = options;
+  refetchProgressView.style.display = 'none';
+  refetchSummaryView.style.display = '';
+  cancelRefetchBtn.style.display = 'none';
+  doneRefetchBtn.style.display = '';
+
+  // Update icon based on success/failure
+  if (failed > 0) {
+    refetchSummaryIcon.className = 'w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4';
+    refetchSummaryIcon.innerHTML = '<svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+  } else {
+    refetchSummaryIcon.className = 'w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4';
+    refetchSummaryIcon.innerHTML = '<svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+  }
+
+  if (!isBulk) {
+    // Single recording
+    refetchSummaryText.textContent = success ? 'Refetch Complete' : 'Refetch Failed';
+    refetchSummaryDetails.textContent = success
+      ? `Successfully refreshed ${screenshotCount} screenshot${screenshotCount !== 1 ? 's' : ''}`
+      : errors[0] || 'An error occurred';
+  } else {
+    // Bulk refetch
+    refetchSummaryText.textContent = 'Refetch Complete';
+    const successCount = total - failed;
+    refetchSummaryDetails.textContent = failed > 0
+      ? `${successCount} of ${total} recording${total !== 1 ? 's' : ''} succeeded, ${failed} failed`
+      : `All ${total} recording${total !== 1 ? 's' : ''} refreshed successfully`;
+  }
+
+  // Show error list if there are failures
+  if (errors.length > 0 && total > 1) {
+    refetchErrorList.style.display = '';
+    refetchErrorItems.innerHTML = errors.map(e => `<li>${escapeHtml(e)}</li>`).join('');
+  } else {
+    refetchErrorList.style.display = 'none';
+  }
+
+  refetchResultCallback = onDone;
+}
+
+async function startBulkRefetch() {
+  if (!currentProjectId || isRecording) return;
+
+  const recordings = await window.electronAPI.getProjectRecordings(currentProjectId);
+  if (!recordings || recordings.length === 0) {
+    statusText.textContent = 'No recordings to refetch';
+    return;
+  }
+
+  refetchCancelled = false;
+  showRefetchModal('Refetching All Screenshots');
+
+  let completed = 0;
+  let failed = 0;
+  const total = recordings.length;
+  const errors = [];
+
+  for (const recording of recordings) {
+    if (refetchCancelled) break;
+
+    refetchProgressText.textContent = `Refetching "${recording.title || 'Untitled'}"...`;
+    refetchProgressCount.textContent = `${completed} / ${total}`;
+    refetchProgressBar.style.width = `${(completed / total) * 100}%`;
+    refetchCurrentItem.textContent = recording.title || recording.id;
+
+    try {
+      await refetchRecordingScreenshots(recording.id, null, true);
+      completed++;
+    } catch (error) {
+      console.error(`Failed to refetch ${recording.id}:`, error);
+      errors.push(`${recording.title || recording.id}: ${error.message}`);
+      failed++;
+      completed++;
+    }
+  }
+
+  // Update progress to 100%
+  refetchProgressBar.style.width = '100%';
+  refetchProgressCount.textContent = `${completed} / ${total}`;
+
+  if (refetchCancelled) {
+    statusText.textContent = `Refetch cancelled. Completed: ${completed - 1} of ${total}`;
+    refetchProgressModal.style.display = 'none';
+  } else {
+    statusText.textContent = failed > 0
+      ? `Refetch completed: ${completed - failed} of ${total} (${failed} failed)`
+      : `Refetch completed: ${completed} recordings`;
+
+    showRefetchSummary(failed === 0, total, failed, errors, () => {
+      showWelcomePanel(true);
+    }, { isBulk: true });
+  }
+}
+
 function populateWelcomePanel() {
+  // Set output dir from settings
   if (currentSettings) {
     welcomeOutputDir.value = currentSettings.outputDir || '';
-    welcomeViewportWidth.value = currentSettings.viewport?.width || 1280;
-    welcomeViewportHeight.value = currentSettings.viewport?.height || 720;
-    welcomeSeparator.value = currentSettings.separator || '---';
-
-    // CSS injection settings
-    welcomeInjectCSS.checked = currentSettings.injectCSS || false;
-    welcomeCustomCSS.value = currentSettings.customCSS || '';
-    welcomeCSSOptions.style.display = welcomeInjectCSS.checked ? 'block' : 'none';
-
-    // Populate recent URLs datalist
-    populateWelcomeRecentUrls();
   }
+
+  // Populate recent URLs datalist
+  populateWelcomeRecentUrls();
+
+  // Update project defaults display
+  if (currentProject) {
+    const settings = currentProject.settings || {};
+    const vp = settings.viewport || { width: 1680, height: 950 };
+
+    // Set default URL from project if URL field is empty
+    if (!welcomeUrl.value && settings.siteUrl) {
+      welcomeUrl.value = settings.siteUrl;
+    }
+
+    // Display defaults
+    defaultViewportDisplay.textContent = `${vp.width}x${vp.height}`;
+
+    // Show separator if set
+    const separator = currentSettings?.separator || '---';
+    if (separator) {
+      defaultSeparatorDisplay.textContent = `sep: ${separator}`;
+      defaultSeparatorDisplay.style.display = '';
+    } else {
+      defaultSeparatorDisplay.style.display = 'none';
+    }
+
+    // Show CSS if enabled
+    if (settings.injectCSS && settings.customCSS) {
+      const cssPreview = settings.customCSS.length > 30
+        ? settings.customCSS.substring(0, 30) + '...'
+        : settings.customCSS;
+      defaultCSSDisplay.textContent = `CSS: ${cssPreview}`;
+      defaultCSSDisplay.title = settings.customCSS;
+      defaultCSSDisplay.style.display = '';
+    } else {
+      defaultCSSDisplay.style.display = 'none';
+    }
+
+    // Set form values to project defaults
+    const presetValue = `${vp.width}x${vp.height}`;
+    const presetOption = welcomeViewportPreset?.querySelector(`option[value="${presetValue}"]`);
+    if (presetOption) {
+      welcomeViewportPreset.value = presetValue;
+      customViewportInputs.style.display = 'none';
+    } else {
+      welcomeViewportPreset.value = 'custom';
+      customViewportInputs.style.display = 'flex';
+    }
+    welcomeViewportWidth.value = vp.width;
+    welcomeViewportHeight.value = vp.height;
+
+    welcomeSeparator.value = currentSettings?.separator || '---';
+    welcomeInjectCSS.checked = settings.injectCSS || false;
+    welcomeCustomCSS.value = settings.customCSS || '';
+    welcomeCSSOptions.style.display = welcomeInjectCSS.checked ? 'block' : 'none';
+  }
+
+  // Reset custom settings state
+  useCustomSettings = false;
+  if (projectDefaultsInfo) projectDefaultsInfo.style.display = '';
+  if (customSettingsSection) customSettingsSection.style.display = 'none';
 }
 
 function populateWelcomeRecentUrls() {
@@ -257,10 +1047,7 @@ function updateWebviewSize() {
   // Viewport setting is used for screenshot capture dimensions
 }
 
-async function loadHistory() {
-  const history = await window.electronAPI.getHistory();
-  renderHistory(history);
-}
+// loadHistory is now replaced by loadProjectRecordings() defined above
 
 function renderHistory(history) {
   if (!history || history.length === 0) {
@@ -270,11 +1057,11 @@ function renderHistory(history) {
 
   historyList.innerHTML = history.map(recording => `
     <div class="group p-3 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 border border-slate-700/30 cursor-pointer transition-all" data-id="${recording.id}">
-      <div class="font-medium text-sm text-slate-300 truncate mb-1">${recording.title || 'Untitled'}</div>
+      <div class="font-medium text-sm text-slate-300 truncate mb-1">${escapeHtml(recording.title || 'Untitled')}</div>
       <div class="flex items-center gap-3 text-xs text-slate-600">
         <span>${new Date(recording.startTime).toLocaleDateString()}</span>
-        <span>${recording.actionCount} actions</span>
-        <span>${recording.screenshotCount} shots</span>
+        <span>${recording.actionCount || 0} actions</span>
+        <span>${recording.screenshotCount || 0} shots</span>
       </div>
       <div class="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button class="p-1.5 rounded-md hover:bg-slate-700 text-slate-500 hover:text-slate-300 transition-colors" data-action="open" title="Open folder">
@@ -285,6 +1072,11 @@ function renderHistory(history) {
         <button class="p-1.5 rounded-md hover:bg-teal-500/20 text-slate-500 hover:text-teal-400 transition-colors" data-action="refetch" title="Refetch screenshots">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+        <button class="p-1.5 rounded-md hover:bg-violet-500/20 text-slate-500 hover:text-violet-400 transition-colors" data-action="move" title="Move to project">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
           </svg>
         </button>
         <button class="p-1.5 rounded-md hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors" data-action="delete" title="Delete">
@@ -338,11 +1130,32 @@ webview.addEventListener('did-stop-loading', () => {
   statusText.textContent = 'Ready';
 });
 
+// Re-sync recording state after page fully loads (preload script runs fresh on each page)
+webview.addEventListener('did-finish-load', () => {
+  if (isRecording) {
+    webview.send('recording-started', { recordActions: currentRecordActions });
+    if (currentCustomCSS) {
+      webview.send('inject-custom-css', currentCustomCSS);
+    }
+  }
+});
+
 webview.addEventListener('did-navigate', (e) => {
   urlInput.value = e.url;
   // Don't record internal/blank URLs
   if (isRecording && e.url && !e.url.startsWith('about:') && !e.url.startsWith('data:')) {
     window.electronAPI.recordAction({ type: 'goto', url: e.url });
+  }
+
+  // Re-sync recording state after navigation
+  if (isRecording) {
+    // Small delay to ensure page is ready
+    setTimeout(() => {
+      webview.send('recording-started', { recordActions: currentRecordActions });
+      if (currentCustomCSS) {
+        webview.send('inject-custom-css', currentCustomCSS);
+      }
+    }, 100);
   }
 });
 
@@ -461,66 +1274,82 @@ if (shortcutsPanelHeader && shortcutsPanel) {
 
 if (newRecordingBtn) {
   newRecordingBtn.addEventListener('click', () => {
-    // Show welcome panel
-    welcomePanel.style.display = '';
-    editorPanel.style.display = 'none';
-    toolbar.style.display = 'none';
-    webviewContainer.classList.add('hidden');
-
-    // Reset form
-    welcomeUrl.value = '';
-    welcomeTitle.value = '';
+    // Use showWelcomePanel which handles project context
+    showWelcomePanel();
 
     // Reset shortcuts panel position
-    shortcutsPanel.style.position = '';
-    shortcutsPanel.style.left = '';
-    shortcutsPanel.style.top = '';
-    shortcutsPanel.style.right = '';
-    shortcutsPanel.style.bottom = '';
-
-    // Focus URL input
-    welcomeUrl.focus();
+    if (shortcutsPanel) {
+      shortcutsPanel.style.position = '';
+      shortcutsPanel.style.left = '';
+      shortcutsPanel.style.top = '';
+      shortcutsPanel.style.right = '';
+      shortcutsPanel.style.bottom = '';
+    }
   });
 }
 
 // ===== Welcome Panel =====
 
-welcomeBrowseDir.addEventListener('click', async () => {
-  const result = await window.electronAPI.selectOutputDir();
-  if (result.success) {
-    welcomeOutputDir.value = result.path;
-    // Also update settings
-    await window.electronAPI.saveSettings({ outputDir: result.path });
-    if (currentSettings) currentSettings.outputDir = result.path;
-  }
-});
+// Customize settings button
+if (customizeSettingsBtn) {
+  customizeSettingsBtn.addEventListener('click', () => {
+    useCustomSettings = true;
+    if (projectDefaultsInfo) projectDefaultsInfo.style.display = 'none';
+    if (customSettingsSection) customSettingsSection.style.display = '';
+  });
+}
+
+// Use defaults button
+if (useDefaultsBtn) {
+  useDefaultsBtn.addEventListener('click', () => {
+    useCustomSettings = false;
+    if (projectDefaultsInfo) projectDefaultsInfo.style.display = '';
+    if (customSettingsSection) customSettingsSection.style.display = 'none';
+
+    // Reset to project defaults
+    if (currentProject) {
+      const settings = currentProject.settings || {};
+      const vp = settings.viewport || { width: 1680, height: 950 };
+      welcomeViewportWidth.value = vp.width;
+      welcomeViewportHeight.value = vp.height;
+      welcomeInjectCSS.checked = settings.injectCSS || false;
+      welcomeCustomCSS.value = settings.customCSS || '';
+    }
+  });
+}
 
 // Viewport preset handler
-welcomeViewportPreset.addEventListener('change', () => {
-  const value = welcomeViewportPreset.value;
-  if (value === 'custom') {
-    customViewportInputs.style.display = 'flex';
-    welcomeViewportWidth.focus();
-  } else {
-    customViewportInputs.style.display = 'none';
-    const [width, height] = value.split('x').map(Number);
-    welcomeViewportWidth.value = width;
-    welcomeViewportHeight.value = height;
-  }
-});
+if (welcomeViewportPreset) {
+  welcomeViewportPreset.addEventListener('change', () => {
+    const value = welcomeViewportPreset.value;
+    if (value === 'custom') {
+      customViewportInputs.style.display = 'flex';
+      welcomeViewportWidth.focus();
+    } else {
+      customViewportInputs.style.display = 'none';
+      const [width, height] = value.split('x').map(Number);
+      welcomeViewportWidth.value = width;
+      welcomeViewportHeight.value = height;
+    }
+  });
+}
 
 // CSS injection checkbox toggle
-welcomeInjectCSS.addEventListener('change', () => {
-  welcomeCSSOptions.style.display = welcomeInjectCSS.checked ? 'block' : 'none';
-});
+if (welcomeInjectCSS) {
+  welcomeInjectCSS.addEventListener('change', () => {
+    welcomeCSSOptions.style.display = welcomeInjectCSS.checked ? 'block' : 'none';
+  });
+}
 
 // Load CSS from file
-welcomeLoadCssFile.addEventListener('click', async () => {
-  const result = await window.electronAPI.selectCssFile();
-  if (result.success) {
-    welcomeCustomCSS.value = result.content;
-  }
-});
+if (welcomeLoadCssFile) {
+  welcomeLoadCssFile.addEventListener('click', async () => {
+    const result = await window.electronAPI.selectCssFile();
+    if (result.success) {
+      welcomeCustomCSS.value = result.content;
+    }
+  });
+}
 
 welcomeStartBtn.addEventListener('click', async () => {
   await startFromWelcomePanel();
@@ -534,6 +1363,12 @@ welcomeUrl.addEventListener('keydown', (e) => {
 });
 
 async function startFromWelcomePanel() {
+  // Require a project
+  if (!currentProjectId) {
+    statusText.textContent = 'Please select a project first';
+    return;
+  }
+
   const url = welcomeUrl.value.trim();
   const title = welcomeTitle.value.trim();
 
@@ -546,45 +1381,48 @@ async function startFromWelcomePanel() {
 
   if (!title) {
     welcomeTitle.focus();
-    statusText.textContent = 'Project title is required';
+    statusText.textContent = 'Recording title is required';
     return;
   }
 
-  // Get viewport from form
-  const viewport = {
-    width: parseInt(welcomeViewportWidth.value) || 1280,
-    height: parseInt(welcomeViewportHeight.value) || 720
-  };
+  // Get settings - use project defaults or custom overrides
+  const projectSettings = currentProject?.settings || {};
+  const projectVp = projectSettings.viewport || { width: 1680, height: 950 };
+
+  let viewport, injectCSS, customCSS;
+  let settingsOverride = {};
+
+  if (useCustomSettings) {
+    // Use custom settings from form
+    viewport = {
+      width: parseInt(welcomeViewportWidth.value) || projectVp.width,
+      height: parseInt(welcomeViewportHeight.value) || projectVp.height
+    };
+    injectCSS = welcomeInjectCSS.checked;
+    customCSS = injectCSS ? welcomeCustomCSS.value.trim() : '';
+
+    // Track which settings are overridden
+    if (viewport.width !== projectVp.width || viewport.height !== projectVp.height) {
+      settingsOverride.viewport = true;
+    }
+    if (injectCSS !== (projectSettings.injectCSS || false)) {
+      settingsOverride.injectCSS = true;
+    }
+    if (customCSS !== (projectSettings.customCSS || '')) {
+      settingsOverride.customCSS = true;
+    }
+  } else {
+    // Use project defaults
+    viewport = projectVp;
+    injectCSS = projectSettings.injectCSS || false;
+    customCSS = projectSettings.customCSS || '';
+  }
 
   // Get separator (empty string means no separator)
-  const separator = welcomeSeparator.value;
+  const separator = welcomeSeparator?.value || currentSettings?.separator || '---';
 
   // Get record actions preference
   const recordActions = welcomeRecordActions.checked;
-
-  // Get CSS injection settings
-  const injectCSS = welcomeInjectCSS.checked;
-  const customCSS = injectCSS ? welcomeCustomCSS.value.trim() : '';
-
-  // Update settings if output dir changed
-  if (welcomeOutputDir.value && welcomeOutputDir.value !== currentSettings.outputDir) {
-    await window.electronAPI.saveSettings({ outputDir: welcomeOutputDir.value });
-    currentSettings.outputDir = welcomeOutputDir.value;
-  }
-
-  // Save separator setting
-  await window.electronAPI.saveSettings({ separator });
-  currentSettings.separator = separator;
-
-  // Save CSS injection settings
-  if (injectCSS !== currentSettings.injectCSS) {
-    await window.electronAPI.saveSettings({ injectCSS });
-    currentSettings.injectCSS = injectCSS;
-  }
-  if (customCSS !== currentSettings.customCSS) {
-    await window.electronAPI.saveSettings({ customCSS });
-    currentSettings.customCSS = customCSS;
-  }
 
   // Hide welcome panel and show webview
   welcomePanel.style.display = 'none';
@@ -605,11 +1443,20 @@ async function startFromWelcomePanel() {
   // Wait for page to load, then start recording
   webview.addEventListener('did-stop-loading', async function onLoad() {
     webview.removeEventListener('did-stop-loading', onLoad);
-    await startRecording(url, title, viewport, separator, recordActions, customCSS);
+    await startRecording(url, title, viewport, separator, recordActions, customCSS, settingsOverride);
   }, { once: true });
 }
 
-function showWelcomePanel() {
+function showWelcomePanel(skipDirtyCheck = false) {
+  // Require a project to be selected
+  if (!currentProjectId) {
+    showProjectList();
+    return;
+  }
+
+  // Check for unsaved editor changes
+  if (!skipDirtyCheck && !confirmLeaveEditor()) return;
+
   // Reset form
   welcomeUrl.value = '';
   welcomeTitle.value = '';
@@ -617,9 +1464,10 @@ function showWelcomePanel() {
 
   // Show welcome panel, hide webview and editor
   welcomePanel.style.display = '';
+  projectListPanel.style.display = 'none';
   editorPanel.style.display = 'none';
   webviewContainer.classList.add('hidden');
-  webview.src = 'data:text/html,';
+  // Don't set empty src - it causes ERR_ABORTED errors
 
   // Hide toolbar, toggle buttons, and viewport info
   toolbar.style.display = 'none';
@@ -630,26 +1478,30 @@ function showWelcomePanel() {
 
   // Clear active history selection
   activeHistoryId = null;
-  _currentRecordingId = null;
   updateHistoryHighlight();
+
+  // Update status
+  statusText.textContent = 'Ready';
 
   // Focus URL input
   setTimeout(() => welcomeUrl.focus(), 100);
 }
 
 
-async function startRecording(url, title, viewport, separator, recordActions = true, customCSS = '') {
+async function startRecording(url, title, viewport, separator, recordActions = true, customCSS = '', settingsOverride = {}) {
   const result = await window.electronAPI.startRecording(url || webview.src, {
+    projectId: currentProjectId,
     title: title || null,
     viewport: viewport || currentSettings.viewport,
     separator: separator !== undefined ? separator : currentSettings.separator,
     recordActions: recordActions,
-    customCSS: customCSS || null
+    customCSS: customCSS || null,
+    injectCSS: !!customCSS,
+    settingsOverride: settingsOverride
   });
 
   if (result.success) {
     isRecording = true;
-    _currentRecordingId = result.id;
 
     // Hide new recording button during recording
     if (newRecordingBtn) newRecordingBtn.style.display = 'none';
@@ -702,6 +1554,10 @@ async function startRecording(url, title, viewport, separator, recordActions = t
     toggleLogBtn.style.display = 'block';
     toggleShortcutsBtn.style.display = 'block';
 
+    // Store recording options for re-sync after navigation
+    currentRecordActions = recordActions;
+    currentCustomCSS = customCSS || '';
+
     // Notify webview that recording started (with recordActions preference)
     webview.send('recording-started', { recordActions });
 
@@ -749,7 +1605,8 @@ async function stopRecording() {
 
     statusText.textContent = `Saved: ${result.recording.actionCount} actions, ${result.recording.screenshotCount} screenshots`;
 
-    await loadHistory();
+    // Reload project recordings
+    await loadProjectRecordings();
 
     // Set active recording and highlight in history
     activeHistoryId = result.recording.id;
@@ -1205,34 +2062,50 @@ if (panelClearBtn) {
 
 // ===== Refetch Screenshots =====
 
-async function refetchRecordingScreenshots(recordingId, actionBtn) {
+async function refetchRecordingScreenshots(recordingId, actionBtn, isBulkRefetch = false) {
   if (isRecording) {
     statusText.textContent = 'Cannot refetch while recording';
     return;
   }
 
-  statusText.textContent = 'Loading recording...';
-  actionBtn.disabled = true;
+  if (!isBulkRefetch) {
+    statusText.textContent = 'Loading recording...';
+  }
+  if (actionBtn) actionBtn.disabled = true;
+
+  // Load recording data first (before showing modal)
+  const recording = await window.electronAPI.loadRecording(recordingId, currentProjectId);
+  if (!recording || !recording.actions) {
+    throw new Error('Invalid recording data');
+  }
+
+  const recordingTitle = recording.title || 'Untitled';
+  const { viewport = { width: 1680, height: 950 }, actions = [] } = recording;
+
+  // Filter to only goto and screenshot actions
+  const relevantActions = actions.filter(a => ['goto', 'screenshot'].includes(a.type));
+  if (relevantActions.length === 0) {
+    if (!isBulkRefetch) {
+      statusText.textContent = 'No actions to refetch';
+    }
+    if (actionBtn) actionBtn.disabled = false;
+    return;
+  }
+
+  const totalScreenshots = relevantActions.filter(a => a.type === 'screenshot').length;
+
+  // Show progress modal for single recording refetch
+  if (!isBulkRefetch) {
+    showRefetchModal(`Refetching: ${recordingTitle}`);
+    refetchProgressText.textContent = 'Initializing...';
+    refetchProgressCount.textContent = `0 / ${totalScreenshots}`;
+  }
 
   try {
-    // Load the recording data
-    const recording = await window.electronAPI.loadRecording(recordingId);
-    if (!recording || !recording.actions) {
-      throw new Error('Invalid recording data');
-    }
-
-    const { viewport = { width: 1280, height: 720 }, actions = [] } = recording;
-
-    // Filter to only goto and screenshot actions
-    const relevantActions = actions.filter(a => ['goto', 'screenshot'].includes(a.type));
-    if (relevantActions.length === 0) {
-      statusText.textContent = 'No actions to refetch';
-      actionBtn.disabled = false;
-      return;
-    }
 
     // Show webview and hide other panels
     welcomePanel.style.display = 'none';
+    projectListPanel.style.display = 'none';
     editorPanel.style.display = 'none';
     webviewContainer.classList.remove('hidden');
     toolbar.style.display = 'flex';
@@ -1247,12 +2120,70 @@ async function refetchRecordingScreenshots(recordingId, actionBtn) {
     viewportInfo.textContent = `${viewport.width} x ${viewport.height}`;
     viewportInfo.classList.remove('hidden');
 
-    let screenshotCount = 0;
-    const totalScreenshots = relevantActions.filter(a => a.type === 'screenshot').length;
+    // Get the first goto action URL to initialize the webview
+    const firstGoto = relevantActions.find(a => a.type === 'goto');
+    if (firstGoto) {
+      webview.src = firstGoto.url;
+      urlInput.value = firstGoto.url;
 
-    // Process each action
-    for (let i = 0; i < relevantActions.length; i++) {
-      const action = relevantActions[i];
+      // Wait for dom-ready to ensure webview is fully attached
+      await new Promise((resolve) => {
+        const onDomReady = () => {
+          webview.removeEventListener('dom-ready', onDomReady);
+          resolve();
+        };
+        // Check if already ready (has web contents attached)
+        try {
+          webview.getWebContentsId();
+          resolve(); // Already ready
+        } catch {
+          webview.addEventListener('dom-ready', onDomReady, { once: true });
+        }
+      });
+
+      // Wait for the page to finish loading
+      await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          webview.removeEventListener('did-finish-load', onLoad);
+          webview.removeEventListener('did-fail-load', onFail);
+          resolve();
+        }, 30000);
+
+        const onLoad = () => {
+          clearTimeout(timeout);
+          webview.removeEventListener('did-fail-load', onFail);
+          resolve();
+        };
+
+        const onFail = () => {
+          clearTimeout(timeout);
+          webview.removeEventListener('did-finish-load', onLoad);
+          resolve();
+        };
+
+        webview.addEventListener('did-finish-load', onLoad, { once: true });
+        webview.addEventListener('did-fail-load', onFail, { once: true });
+      });
+
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    let screenshotCount = 0;
+
+    // Process each action (skip first goto since we already navigated)
+    const actionsToProcess = firstGoto
+      ? relevantActions.filter((a, i) => !(a.type === 'goto' && i === relevantActions.indexOf(firstGoto)))
+      : relevantActions;
+
+    for (let i = 0; i < actionsToProcess.length; i++) {
+      const action = actionsToProcess[i];
+
+      // Update progress
+      if (!isBulkRefetch) {
+        refetchProgressText.textContent = `Processing screenshot ${screenshotCount + 1} of ${totalScreenshots}...`;
+        refetchProgressCount.textContent = `${screenshotCount} / ${totalScreenshots}`;
+        refetchProgressBar.style.width = `${(screenshotCount / totalScreenshots) * 100}%`;
+      }
       statusText.textContent = `Refetching ${screenshotCount}/${totalScreenshots}...`;
 
       if (action.type === 'goto') {
@@ -1303,7 +2234,8 @@ async function refetchRecordingScreenshots(recordingId, actionBtn) {
         await window.electronAPI.saveRefetchedScreenshot({
           recordingId,
           filename: action.filename,
-          imageDataUrl: dataUrl
+          imageDataUrl: dataUrl,
+          projectId: currentProjectId
         });
 
         screenshotCount++;
@@ -1316,23 +2248,32 @@ async function refetchRecordingScreenshots(recordingId, actionBtn) {
     }
 
     // Regenerate markdown
-    await window.electronAPI.regenerateMarkdown(recordingId);
+    await window.electronAPI.regenerateMarkdown(recordingId, currentProjectId);
 
-    statusText.textContent = `Refetched ${screenshotCount} screenshots`;
+    if (!isBulkRefetch) {
+      // Update progress to 100%
+      refetchProgressBar.style.width = '100%';
+      refetchProgressCount.textContent = `${screenshotCount} / ${totalScreenshots}`;
+      statusText.textContent = `Refetched ${screenshotCount} screenshots`;
 
-    // Refresh editor if viewing this recording
-    if (activeHistoryId === recordingId) {
-      await openEditor(recordingId);
-    } else {
-      showWelcomePanel();
+      // Show summary modal
+      showRefetchSummary(true, 1, 0, [], async () => {
+        // Open the editor to show the updated markdown when done is clicked
+        await openEditor(recordingId);
+      }, { screenshotCount });
     }
 
   } catch (error) {
     console.error('Refetch error:', error);
-    statusText.textContent = `Refetch failed: ${error.message}`;
+    if (!isBulkRefetch) {
+      statusText.textContent = `Refetch failed: ${error.message}`;
+      // Show error summary
+      showRefetchSummary(false, 1, 1, [error.message]);
+    }
+    throw error; // Re-throw for bulk refetch to catch
   }
 
-  actionBtn.disabled = false;
+  if (actionBtn) actionBtn.disabled = false;
 }
 
 // ===== History Actions =====
@@ -1347,13 +2288,15 @@ historyList.addEventListener('click', async (e) => {
   if (actionBtn) {
     const action = actionBtn.dataset.action;
     if (action === 'open') {
-      await window.electronAPI.openRecordingFolder(id);
+      await window.electronAPI.openRecordingFolder(id, currentProjectId);
     } else if (action === 'refetch') {
       await refetchRecordingScreenshots(id, actionBtn);
+    } else if (action === 'move') {
+      openMoveRecordingModal(id);
     } else if (action === 'delete') {
       if (confirm('Delete this recording?')) {
-        await window.electronAPI.deleteRecording(id);
-        loadHistory();
+        await window.electronAPI.deleteRecording(id, currentProjectId);
+        await loadProjectRecordings();
         // If we're viewing this recording, go back to welcome
         if (activeHistoryId === id) {
           showWelcomePanel();
@@ -1425,9 +2368,14 @@ function updateHistoryHighlight() {
 // ===== Markdown Editor =====
 
 async function openEditor(recordingId) {
+  // Check for unsaved changes if switching to a different recording
+  if (activeHistoryId && activeHistoryId !== recordingId && !confirmLeaveEditor()) {
+    return;
+  }
+
   try {
     // Get the markdown file path for this recording
-    const result = await window.electronAPI.getRecordingMarkdown(recordingId);
+    const result = await window.electronAPI.getRecordingMarkdown(recordingId, currentProjectId);
 
     if (!result.success) {
       statusText.textContent = result.error || 'Failed to load markdown';
@@ -1437,7 +2385,6 @@ async function openEditor(recordingId) {
 
     // Store state
     activeHistoryId = recordingId;
-    _editorFilePath = result.filePath;
     editorRecordingDir = result.recordingDir;
     editorOriginalContent = result.content;
 
@@ -1455,6 +2402,7 @@ async function openEditor(recordingId) {
 
     // Show editor panel, hide others
     welcomePanel.style.display = 'none';
+    projectListPanel.style.display = 'none';
     webviewContainer.classList.add('hidden');
     toolbar.style.display = 'none';
     editorPanel.style.display = 'flex';
@@ -1635,18 +2583,13 @@ editorPreview.addEventListener('click', (e) => {
 });
 
 editorBackBtn.addEventListener('click', () => {
-  const hasChanges = editorTextarea.value !== editorOriginalContent;
-  if (hasChanges) {
-    if (!confirm('You have unsaved changes. Discard them?')) {
-      return;
-    }
-  }
-  showWelcomePanel();
+  if (!confirmLeaveEditor()) return;
+  showWelcomePanel(true); // Skip dirty check since we just confirmed
 });
 
 editorSaveBtn.addEventListener('click', async () => {
   try {
-    const result = await window.electronAPI.saveRecordingMarkdown(activeHistoryId, editorTextarea.value);
+    const result = await window.electronAPI.saveRecordingMarkdown(activeHistoryId, editorTextarea.value, currentProjectId);
 
     if (result.success) {
       editorOriginalContent = editorTextarea.value;
@@ -1807,7 +2750,7 @@ const textInputSaveBtn = document.getElementById('textInputSave');
 async function openScreenshotEditor(recordingId, filename) {
   try {
     // Get the full path to the screenshot and any existing edits
-    const result = await window.electronAPI.getScreenshotPath(recordingId, filename);
+    const result = await window.electronAPI.getScreenshotPath(recordingId, filename, currentProjectId);
     if (!result.success) {
       statusText.textContent = result.error || 'Failed to load screenshot';
       return;
@@ -2339,7 +3282,8 @@ if (ssEditorResetBtn) {
 
       const result = await window.electronAPI.resetScreenshotToOriginal({
         recordingId: screenshotEditor.recordingId,
-        filename: screenshotEditor.filename
+        filename: screenshotEditor.filename,
+        projectId: currentProjectId
       });
 
       if (result.success) {
@@ -2394,7 +3338,8 @@ if (ssEditorSaveBtn) {
         recordingId: screenshotEditor.recordingId,
         filename: screenshotEditor.filename,
         blurRegions: screenshotEditor.regions,
-        annotations: screenshotEditor.annotations
+        annotations: screenshotEditor.annotations,
+        projectId: currentProjectId
       });
 
       if (result.success) {

@@ -3,6 +3,7 @@ const path = require('path');
 const { generateScript } = require('../shared/script-generator');
 const { generateMarkdown } = require('../shared/markdown-generator');
 const { slugify } = require('@doc-recorder/shared');
+const { getProjectFolderPath } = require('./project-manager');
 
 /**
  * Ensure a directory exists, creating it if necessary.
@@ -18,10 +19,15 @@ function ensureDir(dirPath) {
  *
  * @param {string} outputDir - Base output directory
  * @param {Object} recording - Recording data
+ * @param {Object|string} [project] - Project object or name (for project-based storage)
  * @returns {Object} - Paths to saved files
  */
-function saveRecording(outputDir, recording) {
-  const recordingDir = path.join(outputDir, recording.id);
+function saveRecording(outputDir, recording, project = null) {
+  let baseDir = outputDir;
+  if (project) {
+    baseDir = getProjectFolderPath(outputDir, project);
+  }
+  const recordingDir = path.join(baseDir, recording.id);
   const screenshotsDir = path.join(recordingDir, 'screenshots');
 
   ensureDir(recordingDir);
@@ -30,9 +36,8 @@ function saveRecording(outputDir, recording) {
   // Compute markdown filename from title (fallback to screenshots.md)
   const mdFilename = recording.title ? slugify(recording.title) + '.md' : 'screenshots.md';
 
-  // Save actions.json
-  const actionsPath = path.join(recordingDir, 'actions.json');
-  fs.writeFileSync(actionsPath, JSON.stringify({
+  // Build actions.json data
+  const actionsData = {
     id: recording.id,
     title: recording.title,
     viewport: recording.viewport,
@@ -40,7 +45,22 @@ function saveRecording(outputDir, recording) {
     endTime: new Date().toISOString(),
     actions: recording.actions,
     mdFilename
-  }, null, 2));
+  };
+
+  // Add settings override info if present
+  if (recording.settingsOverride) {
+    actionsData.settingsOverride = recording.settingsOverride;
+  }
+  if (recording.injectCSS !== undefined) {
+    actionsData.injectCSS = recording.injectCSS;
+  }
+  if (recording.customCSS) {
+    actionsData.customCSS = recording.customCSS;
+  }
+
+  // Save actions.json
+  const actionsPath = path.join(recordingDir, 'actions.json');
+  fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
 
   // Generate and save Playwright script
   const scriptPath = path.join(recordingDir, 'recorded-script.js');
@@ -76,7 +96,7 @@ function saveScreenshot(screenshotsDir, filename, imageBuffer) {
 
 /**
  * Load recording history from the history file.
- *
+ * @deprecated Use getProjectRecordings from project-manager.js instead
  * @param {string} outputDir - Base output directory
  * @returns {Array} - Array of recording metadata
  */
@@ -94,7 +114,7 @@ function loadHistory(outputDir) {
 
 /**
  * Save recording history.
- *
+ * @deprecated Use project-manager.js for project-based storage
  * @param {string} outputDir - Base output directory
  * @param {Array} history - Array of recording metadata
  */
@@ -106,7 +126,7 @@ function saveHistory(outputDir, history) {
 
 /**
  * Add a recording to history.
- *
+ * @deprecated Use addRecordingToProject from project-manager.js instead
  * @param {string} outputDir - Base output directory
  * @param {Object} recording - Recording metadata to add
  */
@@ -130,17 +150,24 @@ function addToHistory(outputDir, recording) {
  *
  * @param {string} outputDir - Base output directory
  * @param {string} recordingId - Recording ID to delete
+ * @param {string} [projectName] - Project name (for project-based storage)
  */
-function deleteRecording(outputDir, recordingId) {
-  const recordingDir = path.join(outputDir, recordingId);
+function deleteRecording(outputDir, recordingId, projectName = null) {
+  let baseDir = outputDir;
+  if (projectName) {
+    baseDir = getProjectFolderPath(outputDir, projectName);
+  }
+  const recordingDir = path.join(baseDir, recordingId);
   if (fs.existsSync(recordingDir)) {
     fs.rmSync(recordingDir, { recursive: true, force: true });
   }
 
-  // Remove from history
-  const history = loadHistory(outputDir);
-  const filtered = history.filter(r => r.id !== recordingId);
-  saveHistory(outputDir, filtered);
+  // Only update legacy history if no project (backwards compatibility)
+  if (!projectName) {
+    const history = loadHistory(outputDir);
+    const filtered = history.filter(r => r.id !== recordingId);
+    saveHistory(outputDir, filtered);
+  }
 }
 
 /**
@@ -148,10 +175,15 @@ function deleteRecording(outputDir, recordingId) {
  *
  * @param {string} outputDir - Base output directory
  * @param {string} recordingId - Recording ID
+ * @param {string} [projectName] - Project name (for project-based storage)
  * @returns {Object|null} - Recording data or null if not found
  */
-function loadRecording(outputDir, recordingId) {
-  const actionsPath = path.join(outputDir, recordingId, 'actions.json');
+function loadRecording(outputDir, recordingId, projectName = null) {
+  let baseDir = outputDir;
+  if (projectName) {
+    baseDir = getProjectFolderPath(outputDir, projectName);
+  }
+  const actionsPath = path.join(baseDir, recordingId, 'actions.json');
   if (fs.existsSync(actionsPath)) {
     try {
       return JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
@@ -167,10 +199,15 @@ function loadRecording(outputDir, recordingId) {
  *
  * @param {string} outputDir - Base output directory
  * @param {string} recordingId - Recording ID
+ * @param {string} [projectName] - Project name (for project-based storage)
  * @returns {Object} - { success, content, filePath, title } or { success: false, error }
  */
-function loadRecordingMarkdown(outputDir, recordingId) {
-  const recordingDir = path.join(outputDir, recordingId);
+function loadRecordingMarkdown(outputDir, recordingId, projectName = null) {
+  let baseDir = outputDir;
+  if (projectName) {
+    baseDir = getProjectFolderPath(outputDir, projectName);
+  }
+  const recordingDir = path.join(baseDir, recordingId);
   const actionsPath = path.join(recordingDir, 'actions.json');
 
   // Try to get mdFilename and title from actions.json
@@ -206,10 +243,15 @@ function loadRecordingMarkdown(outputDir, recordingId) {
  * @param {string} outputDir - Base output directory
  * @param {string} recordingId - Recording ID
  * @param {string} content - Markdown content to save
+ * @param {string} [projectName] - Project name (for project-based storage)
  * @returns {Object} - { success: true } or { success: false, error }
  */
-function saveRecordingMarkdown(outputDir, recordingId, content) {
-  const recordingDir = path.join(outputDir, recordingId);
+function saveRecordingMarkdown(outputDir, recordingId, content, projectName = null) {
+  let baseDir = outputDir;
+  if (projectName) {
+    baseDir = getProjectFolderPath(outputDir, projectName);
+  }
+  const recordingDir = path.join(baseDir, recordingId);
   const actionsPath = path.join(recordingDir, 'actions.json');
 
   // Get mdFilename from actions.json (fallback to screenshots.md)

@@ -8,7 +8,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return `file:///${p}`;
   },
 
-  // Recording controls
+  // ===== Project Management =====
+  getProjects: () => ipcRenderer.invoke('get-projects'),
+  createProject: (options) => ipcRenderer.invoke('create-project', options),
+  updateProject: (projectId, updates) => ipcRenderer.invoke('update-project', projectId, updates),
+  deleteProject: (projectId) => ipcRenderer.invoke('delete-project', projectId),
+  getProject: (projectId) => ipcRenderer.invoke('get-project', projectId),
+  getProjectRecordings: (projectId) => ipcRenderer.invoke('get-project-recordings', projectId),
+  moveRecording: (recordingId, fromProjectId, toProjectId) =>
+    ipcRenderer.invoke('move-recording', recordingId, fromProjectId, toProjectId),
+  setLastOpenedProject: (projectId) => ipcRenderer.invoke('set-last-opened-project', projectId),
+  openProjectFolder: (projectId) => ipcRenderer.invoke('open-project-folder', projectId),
+  getRefetchQueue: (projectId) => ipcRenderer.invoke('get-refetch-queue', projectId),
+
+  // ===== Recording controls =====
   startRecording: (url, options) => ipcRenderer.invoke('start-recording', url, options),
   stopRecording: () => ipcRenderer.invoke('stop-recording'),
   getRecordingStatus: () => ipcRenderer.invoke('get-recording-status'),
@@ -22,32 +35,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Screenshot capture
   captureScreenshot: (data) => ipcRenderer.invoke('capture-screenshot', data),
 
-  // History
-  getHistory: () => ipcRenderer.invoke('get-history'),
-  loadRecording: (id) => ipcRenderer.invoke('load-recording', id),
-  deleteRecording: (id) => ipcRenderer.invoke('delete-recording', id),
-  openRecordingFolder: (id) => ipcRenderer.invoke('open-recording-folder', id),
+  // ===== Recordings (now project-aware) =====
+  loadRecording: (id, projectId) => ipcRenderer.invoke('load-recording', id, projectId),
+  deleteRecording: (id, projectId) => ipcRenderer.invoke('delete-recording', id, projectId),
+  openRecordingFolder: (id, projectId) => ipcRenderer.invoke('open-recording-folder', id, projectId),
 
-  // Markdown Editor
-  getRecordingMarkdown: (id) => ipcRenderer.invoke('get-recording-markdown', id),
-  saveRecordingMarkdown: (id, content) => ipcRenderer.invoke('save-recording-markdown', id, content),
+  // ===== Markdown Editor =====
+  getRecordingMarkdown: (id, projectId) => ipcRenderer.invoke('get-recording-markdown', id, projectId),
+  saveRecordingMarkdown: (id, content, projectId) => ipcRenderer.invoke('save-recording-markdown', id, content, projectId),
 
-  // Refetch
+  // ===== Refetch =====
   saveRefetchedScreenshot: (data) => ipcRenderer.invoke('save-refetched-screenshot', data),
-  regenerateMarkdown: (id) => ipcRenderer.invoke('regenerate-markdown', id),
+  regenerateMarkdown: (id, projectId) => ipcRenderer.invoke('regenerate-markdown', id, projectId),
 
-  // Screenshot Editor
-  getScreenshotPath: (recordingId, filename) => ipcRenderer.invoke('get-screenshot-path', recordingId, filename),
+  // ===== Screenshot Editor =====
+  getScreenshotPath: (recordingId, filename, projectId) =>
+    ipcRenderer.invoke('get-screenshot-path', recordingId, filename, projectId),
   saveScreenshotEdits: (data) => ipcRenderer.invoke('save-screenshot-edits', data),
   resetScreenshotToOriginal: (data) => ipcRenderer.invoke('reset-screenshot-to-original', data),
 
-  // Settings
+  // ===== Settings =====
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   selectOutputDir: () => ipcRenderer.invoke('select-output-dir'),
   selectCssFile: () => ipcRenderer.invoke('select-css-file'),
+  selectProjectFolder: () => ipcRenderer.invoke('select-project-folder'),
 
-  // Event listeners
+  // ===== Event listeners =====
   onActionRecorded: (callback) => {
     ipcRenderer.on('action-recorded', (event, action) => callback(action));
   },
