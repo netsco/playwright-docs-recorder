@@ -1,5 +1,15 @@
 # @doc-recorder/desktop
 
+## 0.5.1
+
+### Patch Changes
+
+- Improve screenshot previews in sidebar
+
+  - Clear screenshot previews from sidebar when recording stops
+  - Display screenshots in a 2-column grid layout
+  - Show full screenshots without distortion
+
 ## 0.5.0
 
 ### Minor Changes
