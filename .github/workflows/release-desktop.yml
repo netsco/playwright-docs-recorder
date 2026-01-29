@@ -46,6 +46,10 @@ jobs:
         working-directory: packages/desktop
         run: npm run css:build
 
+      - name: Setup production dependencies
+        working-directory: packages/desktop
+        run: npm run prebuild
+
       - name: Install 7-Zip (Windows)
         if: matrix.platform == 'win'
         run: |
