@@ -1597,6 +1597,12 @@ async function stopRecording() {
   // Hide toolbar
   toolbar.style.display = 'none';
 
+  // Clear screenshot previews from sidebar
+  const screenshotSection = document.getElementById('screenshotSection');
+  const screenshotPreviews = document.getElementById('screenshotPreviews');
+  if (screenshotSection) screenshotSection.style.display = 'none';
+  if (screenshotPreviews) screenshotPreviews.innerHTML = '';
+
   // Notify webview that recording stopped
   webview.send('recording-stopped');
 
