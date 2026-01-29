@@ -1,5 +1,11 @@
 # @doc-recorder/desktop
 
+## 0.5.2
+
+### Patch Changes
+
+- Fix electron-builder dependency bundling issues with prebuild and afterPack scripts
+
 ## 0.5.1
 
 ### Patch Changes
