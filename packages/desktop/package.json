@@ -21,7 +21,7 @@
   "homepage": "https://github.com/netsco/playwright-docs-recorder",
   "license": "MIT",
   "dependencies": {
-    "@doc-recorder/shared": "0.3.0",
+    "@doc-recorder/shared": "*",
     "electron-store": "^8.1.0",
     "marked": "^17.0.1",
     "sharp": "^0.33.0"

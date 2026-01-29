@@ -7,7 +7,7 @@
     "doc-recorder": "./index.js"
   },
   "dependencies": {
-    "@doc-recorder/shared": "0.2.0",
+    "@doc-recorder/shared": "*",
     "playwright": "^1.40.0"
   },
   "keywords": [
