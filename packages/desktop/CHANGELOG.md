@@ -1,5 +1,19 @@
 # @doc-recorder/desktop
 
+## 0.5.0
+
+### Minor Changes
+
+- Improve refetch UX with progress modal and editor dirty checks
+
+  - Fix webview dom-ready issue causing refetch failures
+  - Add dirty check before navigating away from editor with unsaved changes
+  - Add folder icon to project cards to open project folder
+  - Update status text properly across all navigation states
+  - Use progress modal for both single and bulk refetch operations
+  - Show summary with success/failure counts when refetch completes
+  - Display error list for failed recordings in bulk refetch
+
 ## 0.3.0
 
 ### Minor Changes
