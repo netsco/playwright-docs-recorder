@@ -1,5 +1,16 @@
 # @doc-recorder/cli
 
+## 0.5.0
+
+### Minor Changes
+
+- 219e977: Add hover action recording via Ctrl+Shift+H shortcut. Hover actions are stored in actions.json, replayed in generated scripts, and supported in video/GIF generation.
+
+### Patch Changes
+
+- Updated dependencies [219e977]
+  - @doc-recorder/shared@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
