@@ -249,6 +249,34 @@ function setupEventListeners() {
       const sel = highlighted ? getSelector(highlighted) : null;
       ipcRenderer.sendToHost('request-screenshot', { selector: sel, withNote: true });
     }
+
+    // H = Record hover + toggle highlight
+    if (code === 'KeyH') {
+      e.preventDefault();
+      e.stopPropagation();
+      const hovered = document.elementFromPoint(
+        window.innerWidth / 2, window.innerHeight / 2
+      ) || Array.from(document.querySelectorAll(':hover')).pop();
+      if (!hovered) return;
+
+      // Toggle highlight
+      if (highlighted === hovered) {
+        highlighted = null;
+        hideOverlay();
+        ipcRenderer.sendToHost('highlight-changed', null);
+      } else {
+        highlighted = hovered;
+        showOverlay(hovered);
+        hideHoverOverlay();
+        ipcRenderer.sendToHost('highlight-changed', getSelector(hovered));
+      }
+
+      // Record hover action
+      const hoverSel = getSelector(hovered);
+      if (hoverSel) {
+        ipcRenderer.sendToHost('record-action', { type: 'hover', selector: hoverSel });
+      }
+    }
   });
 
   document.addEventListener('keyup', (e) => {

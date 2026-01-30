@@ -138,6 +138,19 @@ class RecordingGenerator {
         await this.captureFrames(page, framesDir, 3);
         break;
 
+      case 'hover':
+        // Highlight element, hover, capture frames
+        await this.highlightElement(page, action.selector);
+        await this.captureFrames(page, framesDir, 2);
+        try {
+          await page.locator(action.selector).hover({ timeout: 5000 });
+        } catch {
+          await page.hover(action.selector, { timeout: 5000 }).catch(() => {});
+        }
+        await this.captureFrames(page, framesDir, 2);
+        await this.clearHighlights(page);
+        break;
+
       case 'screenshot':
         // If there's a highlight associated, apply it
         if (action.highlight) {

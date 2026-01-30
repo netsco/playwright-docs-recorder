@@ -18,6 +18,7 @@ function getLegendHTML() {
       <div><kbd>Ctrl+Shift+S</kbd> Screenshot</div>
       <div><kbd>Ctrl+Shift+F</kbd> Full page</div>
       <div><kbd>Ctrl+Shift+K</kbd> + note</div>
+      <div><kbd>Ctrl+Shift+H</kbd> Record hover</div>
       <div><kbd>Ctrl+Shift+X</kbd> Clear</div>
     </div>
     <div id="__legend-buttons" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.3);padding-top:8px;display:flex;gap:6px;flex-wrap:wrap;">

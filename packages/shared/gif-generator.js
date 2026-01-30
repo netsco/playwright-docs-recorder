@@ -46,6 +46,16 @@ async function generateActionGif({ page, action, outputPath, config = {} }) {
         // Action failed, continue anyway
       }
     }
+  } else if (action.type === 'hover') {
+    try {
+      await page.locator(action.selector).hover({ timeout: 5000 });
+    } catch {
+      try {
+        await page.hover(action.selector, { timeout: 5000 });
+      } catch {
+        // Action failed, continue anyway
+      }
+    }
   } else if (action.type === 'fill') {
     try {
       await page.locator(action.selector).fill(action.value, { timeout: 5000 });
@@ -236,7 +246,7 @@ async function generateAllActionGifs({ actionsFile, outputDir, config = {} }) {
   const viewport = data.viewport || { width: 1280, height: 720 };
 
   // Filter to actionable items (click, fill)
-  const actionableTypes = ['click', 'fill'];
+  const actionableTypes = ['click', 'fill', 'hover'];
 
   // Create output directory
   const gifsDir = path.join(outputDir, 'gifs');

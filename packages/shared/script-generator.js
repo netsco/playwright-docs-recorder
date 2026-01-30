@@ -47,6 +47,9 @@ function generateScript(recording) {
       case 'fill':
         lines.push(`  await page.locator('${action.selector}').fill('${action.value}');`);
         break;
+      case 'hover':
+        lines.push(`  await page.locator('${action.selector}').hover();`);
+        break;
       case 'note':
         // Standalone note - just log it
         if (action.note) {

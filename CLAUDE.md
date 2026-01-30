@@ -77,7 +77,7 @@ node generate-recording.js <actions.json> [options]
 | `Ctrl+Shift+S` | Take screenshot |
 | `Ctrl+Shift+K` | Screenshot with note |
 | `Ctrl+Shift+F` | Full page screenshot |
-| `Ctrl+Shift+H` | Toggle highlight on hovered element |
+| `Ctrl+Shift+H` | Record hover + toggle highlight |
 | `Ctrl+Shift+X` | Clear highlight |
 | `Ctrl+C` | Stop and save |
 

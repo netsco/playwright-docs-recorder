@@ -484,6 +484,11 @@ class DocRecorder {
             showOverlay(hovered);
             window.__notifyHighlight(getSelector(hovered));
           }
+          // Record hover action
+          const hoverSel = getSelector(hovered);
+          if (hoverSel) {
+            window.__recordAction({ type: 'hover', selector: hoverSel });
+          }
         }
 
         // S = Screenshot (includes any visible highlight)
@@ -679,6 +684,7 @@ class DocRecorder {
 │  Ctrl+Shift+S      Take screenshot          │
 │  Ctrl+Shift+F      Full page screenshot     │
 │  Ctrl+Shift+K      Screenshot + note        │
+│  Ctrl+Shift+H      Record hover             │
 │  Ctrl+Shift+X      Clear highlight          │
 │  Ctrl+C            Stop & save script       │
 └─────────────────────────────────────────────┘
