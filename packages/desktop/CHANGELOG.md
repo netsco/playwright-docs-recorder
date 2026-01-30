@@ -1,5 +1,16 @@
 # @doc-recorder/desktop
 
+## 0.6.0
+
+### Minor Changes
+
+- f421f8e: Add scroll action recording to capture and replay window scroll positions. Scroll events are debounced (150ms) and recorded in both CLI and desktop. Generated scripts replay scrolls, refetch restores scroll positions before screenshots, and video generation renders smooth scroll animations.
+
+### Patch Changes
+
+- Updated dependencies [f421f8e]
+  - @doc-recorder/shared@0.4.0
+
 ## 0.5.2
 
 ### Patch Changes
