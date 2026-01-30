@@ -93,7 +93,7 @@ async function refetchScreenshots(recordingDir, options = {}) {
     };
 
     // Process actions
-    const totalActions = actions.filter(a => ['goto', 'screenshot'].includes(a.type)).length;
+    const totalActions = actions.filter(a => ['goto', 'screenshot', 'scroll'].includes(a.type)).length;
     let actionIndex = 0;
 
     for (const action of actions) {
@@ -105,6 +105,15 @@ async function refetchScreenshots(recordingDir, options = {}) {
           await page.goto(action.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         } catch (error) {
           console.error(`Failed to navigate to ${action.url}: ${error.message}`);
+        }
+      } else if (action.type === 'scroll') {
+        actionIndex++;
+        if (onProgress) onProgress(action, actionIndex, totalActions);
+
+        try {
+          await page.evaluate(({ x, y }) => window.scrollTo(x, y), { x: action.x, y: action.y });
+        } catch (error) {
+          console.warn(`Failed to scroll: ${error.message}`);
         }
       } else if (action.type === 'screenshot') {
         actionIndex++;

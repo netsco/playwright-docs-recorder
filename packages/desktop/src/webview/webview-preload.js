@@ -319,6 +319,21 @@ function setupEventListeners() {
     }
   }, true);
 
+  // Record scroll events (debounced)
+  let scrollTimeout = null;
+  window.addEventListener('scroll', () => {
+    if (!isRecording) return;
+
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      ipcRenderer.sendToHost('record-action', {
+        type: 'scroll',
+        x: Math.round(window.scrollX),
+        y: Math.round(window.scrollY)
+      });
+    }, 150);
+  }, { passive: true });
+
   // Handle window blur (user left the page while holding Ctrl)
   window.addEventListener('blur', () => {
     isCtrlHeld = false;

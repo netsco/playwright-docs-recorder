@@ -55,6 +55,9 @@ function generateScript(recording) {
           lines.push(`  console.log(\`${escapedNote}\`);`);
         }
         break;
+      case 'scroll':
+        lines.push(`  await page.evaluate(() => window.scrollTo(${action.x}, ${action.y}));`);
+        break;
       case 'screenshot':
         if (action.note) {
           const escapedNote = action.note.replace(/\\/g, '\\\\').replace(/`/g, '\\`');

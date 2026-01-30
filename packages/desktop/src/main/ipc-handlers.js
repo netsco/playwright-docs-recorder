@@ -236,7 +236,7 @@ function registerIpcHandlers() {
 
     // If recordActions is false, only record goto, screenshot, and note actions
     if (!currentRecording.recordActions) {
-      if (!['goto', 'screenshot', 'note'].includes(action.type)) {
+      if (!['goto', 'screenshot', 'note', 'scroll'].includes(action.type)) {
         return; // Skip click/fill actions in screenshots-only mode
       }
     }

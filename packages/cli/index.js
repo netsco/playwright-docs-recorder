@@ -42,7 +42,7 @@ class DocRecorder {
     // Expose functions to page
     await page.exposeFunction('__recordAction', (action) => {
       // In screenshots-only mode, skip click and fill actions
-      if (!this.recordActions && !['goto', 'screenshot', 'note'].includes(action.type)) {
+      if (!this.recordActions && !['goto', 'screenshot', 'note', 'scroll'].includes(action.type)) {
         return;
       }
       this.actions.push(action);
@@ -586,6 +586,19 @@ class DocRecorder {
           });
         }
       }, true);
+
+      // Record scroll events (debounced)
+      let scrollTimeout = null;
+      window.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          window.__recordAction({
+            type: 'scroll',
+            x: Math.round(window.scrollX),
+            y: Math.round(window.scrollY)
+          });
+        }, 150);
+      }, { passive: true });
     }, { legendHTML, legendStyles, kbdStyles });
   }
 

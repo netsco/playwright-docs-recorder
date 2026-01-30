@@ -1,4 +1,4 @@
-/* global document */
+/* global document, window */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -126,6 +126,16 @@ class RecordingGenerator {
         }
         await this.captureFrames(page, framesDir, 2);
         await this.clearHighlights(page);
+        break;
+
+      case 'scroll':
+        await page.evaluate(({ x, y }) => {
+          return new Promise((resolve) => {
+            window.scrollTo({ left: x, top: y, behavior: 'smooth' });
+            setTimeout(resolve, 500);
+          });
+        }, { x: action.x, y: action.y });
+        await this.captureFrames(page, framesDir, 3);
         break;
 
       case 'screenshot':
