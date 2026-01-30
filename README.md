@@ -89,7 +89,7 @@ node recorder.js <url> [output-dir] [viewport] [title]
 | `Ctrl+Shift+S` | Take screenshot |
 | `Ctrl+Shift+K` | Screenshot with note (opens markdown editor) |
 | `Ctrl+Shift+F` | Full page screenshot |
-| `Ctrl+Shift+H` | Toggle highlight on hovered element |
+| `Ctrl+Shift+H` | Record hover + toggle highlight |
 | `Ctrl+Shift+X` | Clear highlight |
 | `Ctrl+C` | Stop recording and save |
 
