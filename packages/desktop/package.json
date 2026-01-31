@@ -4,16 +4,16 @@
   "description": "Desktop app for recording browser interactions with screenshots for documentation",
   "main": "src/main/main.js",
   "scripts": {
-    "css:build": "npx @tailwindcss/cli -i ./src/renderer/styles/input.css -o ./src/renderer/styles/output.css",
-    "css:watch": "npx @tailwindcss/cli -i ./src/renderer/styles/input.css -o ./src/renderer/styles/output.css --watch",
-    "start": "npm run css:build && electron .",
-    "dev": "npm run css:build && electron . --dev",
+    "build:renderer": "npx vite build",
+    "dev:renderer": "npx vite dev",
+    "start": "npm run build:renderer && electron .",
+    "dev": "npm run build:renderer && electron . --dev",
     "prebuild": "node scripts/prebuild.js",
-    "build": "npm run css:build && npm run prebuild && electron-builder",
-    "build:win": "npm run css:build && electron-builder --win",
-    "build:mac": "npm run css:build && electron-builder --mac",
-    "build:linux": "npm run css:build && electron-builder --linux",
-    "pack": "npm run css:build && electron-builder --dir"
+    "build": "npm run build:renderer && npm run prebuild && electron-builder",
+    "build:win": "npm run build:renderer && electron-builder --win",
+    "build:mac": "npm run build:renderer && electron-builder --mac",
+    "build:linux": "npm run build:renderer && electron-builder --linux",
+    "pack": "npm run build:renderer && electron-builder --dir"
   },
   "author": {
     "name": "netsco",
@@ -23,16 +23,32 @@
   "license": "MIT",
   "dependencies": {
     "@doc-recorder/shared": "*",
+    "@radix-ui/react-checkbox": "^1.3.3",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "electron-store": "^8.1.0",
+    "lucide-react": "^0.563.0",
     "marked": "^17.0.1",
-    "sharp": "^0.33.0"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "sharp": "^0.33.0",
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.18",
+    "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "^10.4.23",
     "electron": "^40.0.0",
     "electron-builder": "^26.0.0",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.3.1"
   }
 }
