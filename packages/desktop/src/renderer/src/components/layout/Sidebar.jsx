@@ -62,11 +62,11 @@ export function Sidebar({
   // Collapsed sidebar
   if (sidebarCollapsed) {
     return (
-      <div className="flex h-full w-[52px] flex-col items-center border-r border-slate-700 bg-slate-900 py-3">
+      <div className="flex h-full w-[52px] flex-col items-center border-r border-border bg-card py-3">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-slate-400 hover:text-slate-200"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={handleToggleSidebar}
           title="Expand sidebar"
         >
@@ -75,7 +75,7 @@ export function Sidebar({
 
         {/* Project color dot */}
         <div
-          className="mt-3 h-6 w-6 rounded-full border-2 border-slate-700 text-center text-[8px] font-bold leading-[20px] text-white"
+          className="mt-3 h-6 w-6 rounded-full border-2 border-border text-center text-[8px] font-bold leading-[20px] text-white"
           style={{ backgroundColor: projectColor }}
           title={projectName}
         >
@@ -88,7 +88,7 @@ export function Sidebar({
             {screenshotPreviews.slice(-5).map((preview, i) => (
               <div
                 key={i}
-                className="h-6 w-8 overflow-hidden rounded border border-slate-700"
+                className="h-6 w-8 overflow-hidden rounded border border-border"
               >
                 <img
                   src={preview.dataUrl || preview.path}
@@ -104,23 +104,23 @@ export function Sidebar({
   }
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-slate-700 bg-slate-900">
+    <div className="flex h-full w-64 flex-col border-r border-border bg-card">
       {/* Project header */}
-      <div className="flex items-center gap-2 border-b border-slate-700 px-3 py-2.5">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <div
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
           style={{ backgroundColor: projectColor }}
         >
           {getProjectInitials(projectName)}
         </div>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
           {projectName}
         </span>
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-slate-400 hover:text-slate-200"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
             onClick={onBackToProjects}
             title="Back to projects"
           >
@@ -129,7 +129,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-slate-400 hover:text-slate-200"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
             onClick={onEditProject}
             title="Edit project"
           >
@@ -138,7 +138,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-slate-400 hover:text-slate-200"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
             onClick={handleToggleSidebar}
             title="Collapse sidebar"
           >
@@ -148,15 +148,15 @@ export function Sidebar({
       </div>
 
       {/* Recordings header */}
-      <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Recordings
         </span>
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-slate-400 hover:text-teal-400"
+            className="h-6 w-6 text-muted-foreground hover:text-teal-400"
             onClick={onRefetchAll}
             title="Refetch all screenshots"
             disabled={isRecording}
@@ -166,7 +166,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-slate-400 hover:text-teal-400"
+            className="h-6 w-6 text-muted-foreground hover:text-teal-400"
             onClick={onNewRecording}
             title="New recording"
             disabled={isRecording}
@@ -180,7 +180,7 @@ export function Sidebar({
       <ScrollArea className="flex-1">
         <div className="py-1">
           {recordings.length === 0 ? (
-            <div className="px-3 py-6 text-center text-xs text-slate-500">
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
               No recordings yet. Click{' '}
               <span className="text-teal-400">+</span> to start.
             </div>
@@ -191,8 +191,8 @@ export function Sidebar({
                 className={cn(
                   'group relative flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors',
                   activeHistoryId === rec.id
-                    ? 'bg-slate-800 text-slate-100'
-                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 )}
                 onClick={() => onSelectRecording(rec.id)}
               >
@@ -200,7 +200,7 @@ export function Sidebar({
                 <span className="min-w-0 flex-1 truncate">
                   {rec.title || rec.id}
                 </span>
-                <span className="shrink-0 text-[10px] text-slate-600">
+                <span className="shrink-0 text-[10px] text-muted-foreground">
                   {rec.screenshotCount || 0}
                   <Image className="ml-0.5 inline h-2.5 w-2.5" />
                 </span>
@@ -229,11 +229,11 @@ export function Sidebar({
                   createPortal(
                     <div
                       ref={menuRef}
-                      className="fixed z-[9999] w-40 rounded-md border border-slate-700 bg-slate-800 py-1 shadow-lg"
+                      className="fixed z-[9999] w-40 rounded-md border border-border bg-muted py-1 shadow-lg"
                       style={{ top: menuPos.top, left: menuPos.left }}
                     >
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);
@@ -243,7 +243,7 @@ export function Sidebar({
                         <FolderOpen className="h-3 w-3" /> Open Folder
                       </button>
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);
@@ -253,7 +253,7 @@ export function Sidebar({
                         <RotateCw className="h-3 w-3" /> Refetch Screenshots
                       </button>
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);
@@ -263,7 +263,7 @@ export function Sidebar({
                         <ArrowRightLeft className="h-3 w-3" /> Move to Project
                       </button>
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-accent"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);
@@ -283,9 +283,9 @@ export function Sidebar({
 
       {/* Screenshot previews */}
       {screenshotPreviews.length > 0 && (
-        <div className="border-t border-slate-700">
+        <div className="border-t border-border">
           <div className="px-3 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Screenshots
             </span>
           </div>
@@ -294,7 +294,7 @@ export function Sidebar({
               {screenshotPreviews.map((preview, i) => (
                 <div
                   key={i}
-                  className="overflow-hidden rounded border border-slate-700"
+                  className="overflow-hidden rounded border border-border"
                 >
                   <img
                     src={preview.dataUrl || preview.path}
@@ -302,7 +302,7 @@ export function Sidebar({
                     className="w-full object-contain"
                   />
                   {preview.note && (
-                    <div className="bg-slate-800 px-2 py-1 text-[10px] text-slate-400">
+                    <div className="bg-muted px-2 py-1 text-[10px] text-muted-foreground">
                       {preview.note}
                     </div>
                   )}

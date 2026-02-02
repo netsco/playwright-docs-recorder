@@ -30,10 +30,10 @@ export default function MoveRecordingModal({ open, onOpenChange, onMove }) {
 
         <div className="space-y-2 py-2">
           {otherProjects.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <FolderOpen className="h-10 w-10 mb-3 opacity-50" />
               <p className="text-sm">No other projects available.</p>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Create another project first to move recordings.
               </p>
             </div>
@@ -44,8 +44,8 @@ export default function MoveRecordingModal({ open, onOpenChange, onMove }) {
                 type="button"
                 className={cn(
                   'w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm',
-                  'bg-slate-800 border border-slate-700 text-slate-200',
-                  'hover:bg-slate-700 hover:border-slate-600 transition-colors'
+                  'bg-muted border border-border text-foreground',
+                  'hover:bg-accent hover:border-border transition-colors'
                 )}
                 onClick={() => onMove(project.id)}
               >

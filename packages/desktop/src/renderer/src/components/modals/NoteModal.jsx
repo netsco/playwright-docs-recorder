@@ -158,11 +158,11 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
 
         <div className="space-y-3">
           {/* Markdown Toolbar */}
-          <div className="flex items-center gap-0.5 flex-wrap rounded-md border border-slate-700 bg-slate-800/60 p-1">
+          <div className="flex items-center gap-0.5 flex-wrap rounded-md border border-border bg-muted/60 p-1">
             {TOOLBAR_GROUPS.map((group, gi) => (
               <Fragment key={gi}>
                 {gi > 0 && (
-                  <div className="w-px h-5 bg-slate-700 mx-1" />
+                  <div className="w-px h-5 bg-border mx-1" />
                 )}
                 {group.map((item) => (
                   <button
@@ -170,8 +170,8 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
                     type="button"
                     title={item.label}
                     className={cn(
-                      'inline-flex items-center justify-center h-7 w-7 rounded text-slate-400',
-                      'hover:bg-slate-700 hover:text-slate-200 transition-colors'
+                      'inline-flex items-center justify-center h-7 w-7 rounded text-muted-foreground',
+                      'hover:bg-accent hover:text-foreground transition-colors'
                     )}
                     onClick={() => insertMarkdown(item)}
                   >
@@ -180,13 +180,13 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
                 ))}
               </Fragment>
             ))}
-            <div className="w-px h-5 bg-slate-700 mx-1" />
+            <div className="w-px h-5 bg-border mx-1" />
             <button
               type="button"
               title="Undo"
               className={cn(
-                'inline-flex items-center justify-center h-7 w-7 rounded text-slate-400',
-                'hover:bg-slate-700 hover:text-slate-200 transition-colors',
+                'inline-flex items-center justify-center h-7 w-7 rounded text-muted-foreground',
+                'hover:bg-accent hover:text-foreground transition-colors',
                 undoStack.current.length === 0 && 'opacity-40 cursor-not-allowed'
               )}
               onClick={handleUndo}
@@ -198,8 +198,8 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
               type="button"
               title="Redo"
               className={cn(
-                'inline-flex items-center justify-center h-7 w-7 rounded text-slate-400',
-                'hover:bg-slate-700 hover:text-slate-200 transition-colors',
+                'inline-flex items-center justify-center h-7 w-7 rounded text-muted-foreground',
+                'hover:bg-accent hover:text-foreground transition-colors',
                 redoStack.current.length === 0 && 'opacity-40 cursor-not-allowed'
               )}
               onClick={handleRedo}
@@ -224,7 +224,7 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
           />
 
           {/* Hint */}
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Ctrl+Enter to save &middot; Escape to cancel
           </p>
         </div>

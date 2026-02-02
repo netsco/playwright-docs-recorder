@@ -107,7 +107,7 @@ export function ShortcutsPanel({
     <div
       ref={panelRef}
       className={cn(
-        'absolute z-40 w-64 rounded-lg border border-slate-700 bg-slate-900/95 shadow-xl backdrop-blur-sm',
+        'absolute z-40 w-64 rounded-lg border border-border bg-card/95 shadow-xl backdrop-blur-sm',
         isDragging && 'cursor-grabbing select-none'
       )}
       style={{
@@ -119,10 +119,10 @@ export function ShortcutsPanel({
     >
       {/* Drag handle header */}
       <div
-        className="flex cursor-grab items-center justify-center border-b border-slate-800 py-1.5 active:cursor-grabbing"
+        className="flex cursor-grab items-center justify-center border-b border-border py-1.5 active:cursor-grabbing"
         onMouseDown={handleMouseDown}
       >
-        <GripHorizontal className="h-4 w-4 text-slate-600" />
+        <GripHorizontal className="h-4 w-4 text-muted-foreground" />
       </div>
 
       <div className="p-3">
@@ -181,7 +181,7 @@ export function ShortcutsPanel({
 
         {/* Keyboard shortcuts */}
         <div className="space-y-1">
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Keyboard Shortcuts
           </div>
           {SHORTCUTS.map((shortcut) => (
@@ -189,8 +189,8 @@ export function ShortcutsPanel({
               key={shortcut.keys}
               className="flex items-center justify-between text-[11px]"
             >
-              <span className="text-slate-400">{shortcut.action}</span>
-              <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+              <span className="text-muted-foreground">{shortcut.action}</span>
+              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                 {shortcut.keys}
               </kbd>
             </div>

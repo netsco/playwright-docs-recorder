@@ -38,6 +38,9 @@ const initialState = {
   // Status
   statusText: 'Ready',
 
+  // Theme
+  theme: 'light',
+
   // UI state
   sidebarCollapsed: false,
   sidebarVisible: false,
@@ -143,6 +146,10 @@ function appReducer(state, action) {
     // Status
     case 'SET_STATUS':
       return { ...state, statusText: action.payload };
+
+    // Theme
+    case 'SET_THEME':
+      return { ...state, theme: action.payload };
 
     // UI state
     case 'TOGGLE_SIDEBAR':

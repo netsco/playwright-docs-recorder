@@ -143,12 +143,12 @@ export function WelcomePanel({ onStartRecording }) {
   };
 
   return (
-    <div className="flex h-full w-full items-center justify-center overflow-auto bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-6">
+    <div className="flex h-full w-full items-center justify-center overflow-auto bg-gradient-to-b from-background via-card to-background p-6">
       <div className="w-full max-w-lg">
         <form
           onSubmit={handleSubmit}
           onKeyDown={handleKeyDown}
-          className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-8 shadow-2xl backdrop-blur"
+          className="rounded-xl border border-border/50 bg-muted/60 p-8 shadow-2xl backdrop-blur"
         >
           {/* Header icon */}
           <div className="mb-6 flex flex-col items-center">
@@ -159,11 +159,11 @@ export function WelcomePanel({ onStartRecording }) {
             >
               <Video className="h-7 w-7 text-white" />
             </div>
-            <h2 className="mt-4 text-xl font-bold text-slate-100">
+            <h2 className="mt-4 text-xl font-bold text-foreground">
               New Recording
             </h2>
             {project && (
-              <p className="mt-1 text-sm text-slate-400">
+              <p className="mt-1 text-sm text-muted-foreground">
                 in {project.name}
               </p>
             )}
@@ -245,7 +245,7 @@ export function WelcomePanel({ onStartRecording }) {
               <button
                 type="button"
                 onClick={() => setShowDefaults(!showDefaults)}
-                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showDefaults ? (
                   <ChevronDown className="h-3.5 w-3.5" />
@@ -255,21 +255,21 @@ export function WelcomePanel({ onStartRecording }) {
                 Project defaults
               </button>
               {showDefaults && (
-                <div className="mt-2 rounded-md border border-slate-700/50 bg-slate-900/50 p-3 text-xs text-slate-400">
+                <div className="mt-2 rounded-md border border-border/50 bg-card/50 p-3 text-xs text-muted-foreground">
                   <div className="flex justify-between py-0.5">
                     <span>Viewport</span>
-                    <span className="text-slate-300">{vWidth}x{vHeight}</span>
+                    <span className="text-foreground">{vWidth}x{vHeight}</span>
                   </div>
                   <div className="flex justify-between py-0.5">
                     <span>Separator</span>
-                    <span className="text-slate-300">
+                    <span className="text-foreground">
                       {project.separator ?? settings?.separator ?? '---'}
                     </span>
                   </div>
                   {project.css && (
                     <div className="flex justify-between py-0.5">
                       <span>Custom CSS</span>
-                      <span className="text-slate-300">Configured</span>
+                      <span className="text-foreground">Configured</span>
                     </div>
                   )}
                 </div>
@@ -285,7 +285,7 @@ export function WelcomePanel({ onStartRecording }) {
                 checked={useCustomSettings}
                 onCheckedChange={(checked) => setUseCustomSettings(checked === true)}
               />
-              <Label htmlFor="rec-custom-settings" className="cursor-pointer text-slate-400">
+              <Label htmlFor="rec-custom-settings" className="cursor-pointer text-muted-foreground">
                 Customize settings
               </Label>
             </div>
@@ -293,7 +293,7 @@ export function WelcomePanel({ onStartRecording }) {
 
           {/* Custom Settings Panel */}
           {useCustomSettings && (
-            <div className="mb-5 space-y-4 rounded-md border border-slate-700/50 bg-slate-900/30 p-4">
+            <div className="mb-5 space-y-4 rounded-md border border-border/50 bg-card/30 p-4">
               {/* Viewport Preset */}
               <div>
                 <Label className="mb-1.5 block">Viewport</Label>
@@ -412,7 +412,7 @@ export function WelcomePanel({ onStartRecording }) {
           </Button>
 
           {/* Hint */}
-          <p className="mt-3 text-center text-xs text-slate-500">
+          <p className="mt-3 text-center text-xs text-muted-foreground">
             Press Enter to start
           </p>
         </form>

@@ -48,6 +48,15 @@ function AppContent() {
   const [screenshotEditorConfig, setScreenshotEditorConfig] = useState(null);
   const [textInputConfig, setTextInputConfig] = useState(null);
 
+  // ===== Theme =====
+  useEffect(() => {
+    if (state.theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [state.theme]);
+
   // ===== Initialization =====
   useEffect(() => {
     async function init() {
@@ -56,6 +65,11 @@ function AppContent() {
       try {
         const settings = await api.getSettings();
         dispatch({ type: 'SET_SETTINGS', payload: settings });
+
+        // Apply persisted theme
+        if (settings.theme) {
+          dispatch({ type: 'SET_THEME', payload: settings.theme });
+        }
 
         const data = await api.getProjects();
         dispatch({ type: 'SET_PROJECTS', payload: data.projects || [] });
@@ -875,7 +889,7 @@ function AppContent() {
         )}
 
         {/* Content Area */}
-        <div className="flex-1 relative flex bg-slate-950 overflow-hidden min-h-0">
+        <div className="flex-1 relative flex bg-background overflow-hidden min-h-0">
           {state.currentView === 'projectList' && (
             <ProjectList
               onSelectProject={selectProject}

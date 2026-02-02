@@ -354,7 +354,8 @@ function registerIpcHandlers() {
       showLog: settings.get('showLog'),
       showShortcuts: settings.get('showShortcuts'),
       injectCSS: settings.get('injectCSS'),
-      customCSS: settings.get('customCSS')
+      customCSS: settings.get('customCSS'),
+      theme: settings.get('theme')
     };
   });
 
@@ -367,6 +368,7 @@ function registerIpcHandlers() {
     if (newSettings.showShortcuts !== undefined) settings.set('showShortcuts', newSettings.showShortcuts);
     if (newSettings.injectCSS !== undefined) settings.set('injectCSS', newSettings.injectCSS);
     if (newSettings.customCSS !== undefined) settings.set('customCSS', newSettings.customCSS);
+    if (newSettings.theme !== undefined) settings.set('theme', newSettings.theme);
     return { success: true };
   });
 
