@@ -19,6 +19,9 @@ const dependencies = [
   // @doc-recorder/shared
   '@doc-recorder/shared',
 
+  // adm-zip (project import/export)
+  'adm-zip',
+
   // electron-store and direct dependencies
   'electron-store',
   'conf',

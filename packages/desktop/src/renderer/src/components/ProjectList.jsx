@@ -1,8 +1,8 @@
-import { Plus, FolderOpen, Pencil, Folder } from 'lucide-react';
+import { Plus, FolderOpen, Pencil, Folder, Upload, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/context/AppContext';
 
-export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOpenFolder }) {
+export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOpenFolder, onExportProject, onImportProject }) {
   const { state } = useApp();
   const projects = state.projects;
 
@@ -38,13 +38,22 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
               Select a project to start a new recording or manage existing ones.
             </p>
           </div>
-          <Button
-            onClick={onNewProject}
-            className="bg-teal-500 text-white hover:bg-teal-600"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={onImportProject}
+              variant="outline"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import
+            </Button>
+            <Button
+              onClick={onNewProject}
+              className="bg-teal-500 text-white hover:bg-teal-600"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          </div>
         </div>
 
         {/* Project Grid */}
@@ -88,6 +97,24 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                       }}
                     >
                       <FolderOpen className="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title="Export project"
+                      className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onExportProject(project.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.stopPropagation();
+                          onExportProject(project.id);
+                        }
+                      }}
+                    >
+                      <Download className="h-3.5 w-3.5" />
                     </span>
                     <span
                       role="button"

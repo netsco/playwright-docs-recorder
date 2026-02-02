@@ -522,6 +522,138 @@ function migrateExistingRecordings(outputDir) {
   }
 }
 
+/**
+ * Export a project as a ZIP archive.
+ * @param {string} outputDir - Base output directory
+ * @param {string} projectId - Project ID to export
+ * @param {string} destZipPath - Destination path for the ZIP file
+ */
+function exportProjectAsZip(outputDir, projectId, destZipPath) {
+  const data = loadProjects(outputDir);
+  const project = data.projects.find(p => p.id === projectId);
+  if (!project) {
+    throw new Error('Project not found');
+  }
+
+  const projectFolder = getProjectFolderPath(outputDir, project);
+  if (!fs.existsSync(projectFolder)) {
+    throw new Error('Project folder not found');
+  }
+
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip();
+
+  // Add project manifest (metadata without environment-specific folder path)
+  const manifest = {
+    name: project.name,
+    description: project.description || '',
+    color: project.color || '#14b8a6',
+    settings: project.settings || {},
+    exportedAt: new Date().toISOString()
+  };
+  zip.addFile('__project-manifest.json', Buffer.from(JSON.stringify(manifest, null, 2)));
+
+  // Add all project folder contents
+  addFolderToZip(zip, projectFolder, '');
+
+  zip.writeZip(destZipPath);
+}
+
+/**
+ * Recursively add a folder's contents to a zip archive.
+ * @param {Object} zip - AdmZip instance
+ * @param {string} folderPath - Folder to add
+ * @param {string} zipPrefix - Prefix path inside the zip
+ */
+function addFolderToZip(zip, folderPath, zipPrefix) {
+  const entries = fs.readdirSync(folderPath);
+  for (const entry of entries) {
+    const fullPath = path.join(folderPath, entry);
+    const zipPath = zipPrefix ? `${zipPrefix}/${entry}` : entry;
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      addFolderToZip(zip, fullPath, zipPath);
+    } else {
+      zip.addFile(zipPath, fs.readFileSync(fullPath));
+    }
+  }
+}
+
+/**
+ * Import a project from a ZIP archive.
+ * @param {string} outputDir - Base output directory
+ * @param {string} zipPath - Path to the ZIP file
+ * @returns {Object} - The newly created project
+ */
+function importProjectFromZip(outputDir, zipPath) {
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip(zipPath);
+  const entries = zip.getEntries();
+
+  // Find and parse manifest
+  const manifestEntry = entries.find(e => e.entryName === '__project-manifest.json');
+  if (!manifestEntry) {
+    throw new Error('Invalid project archive: missing manifest');
+  }
+
+  const manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
+
+  // Determine unique folder name
+  const baseFolderName = sanitizeFolderName(manifest.name || 'Imported Project');
+  let folderName = baseFolderName;
+  let counter = 1;
+  while (fs.existsSync(path.join(outputDir, folderName))) {
+    counter++;
+    folderName = `${baseFolderName}-${counter}`;
+  }
+
+  const projectFolder = path.join(outputDir, folderName);
+  fs.mkdirSync(projectFolder, { recursive: true });
+
+  // Extract all files except manifest
+  for (const entry of entries) {
+    if (entry.entryName === '__project-manifest.json') continue;
+    if (entry.isDirectory) {
+      fs.mkdirSync(path.join(projectFolder, entry.entryName), { recursive: true });
+    } else {
+      const destPath = path.join(projectFolder, entry.entryName);
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.writeFileSync(destPath, entry.getData());
+    }
+  }
+
+  // Register the project
+  const data = loadProjects(outputDir);
+  const now = new Date().toISOString();
+  const project = {
+    id: generateProjectId(),
+    name: manifest.name || 'Imported Project',
+    folder: path.normalize(projectFolder),
+    description: manifest.description || '',
+    color: manifest.color || '#14b8a6',
+    createdAt: now,
+    updatedAt: now,
+    settings: manifest.settings || {}
+  };
+
+  // Update project.json inside the folder to use the new project ID
+  const projectJsonPath = path.join(projectFolder, PROJECT_FILE);
+  if (fs.existsSync(projectJsonPath)) {
+    try {
+      const projectData = JSON.parse(fs.readFileSync(projectJsonPath, 'utf8'));
+      projectData.projectId = project.id;
+      fs.writeFileSync(projectJsonPath, JSON.stringify(projectData, null, 2));
+    } catch {
+      // Ignore errors updating project.json
+    }
+  }
+
+  data.projects.push(project);
+  saveProjects(outputDir, data);
+
+  return project;
+}
+
 module.exports = {
   loadProjects,
   saveProjects,
@@ -538,5 +670,7 @@ module.exports = {
   getProjectFolderPath,
   getRecordingPath,
   migrateExistingRecordings,
-  sanitizeFolderName
+  sanitizeFolderName,
+  exportProjectAsZip,
+  importProjectFromZip
 };

@@ -145,6 +145,38 @@ function AppContent() {
     document.title = 'Documentation Recorder';
   }, [api, dispatch, confirmDiscardChanges]);
 
+  // ===== Project Import/Export =====
+  const handleExportProject = useCallback(
+    async (projectId) => {
+      try {
+        const result = await api.exportProject(projectId);
+        if (result.success) {
+          dispatch({ type: 'SET_STATUS', payload: 'Project exported' });
+        } else if (!result.canceled) {
+          dispatch({ type: 'SET_STATUS', payload: `Export error: ${result.error}` });
+        }
+      } catch (err) {
+        dispatch({ type: 'SET_STATUS', payload: `Export error: ${err.message}` });
+      }
+    },
+    [api, dispatch]
+  );
+
+  const handleImportProject = useCallback(async () => {
+    try {
+      const result = await api.importProject();
+      if (result.success) {
+        const data = await api.getProjects();
+        dispatch({ type: 'SET_PROJECTS', payload: data.projects || [] });
+        dispatch({ type: 'SET_STATUS', payload: 'Project imported' });
+      } else if (!result.canceled) {
+        dispatch({ type: 'SET_STATUS', payload: `Import error: ${result.error}` });
+      }
+    } catch (err) {
+      dispatch({ type: 'SET_STATUS', payload: `Import error: ${err.message}` });
+    }
+  }, [api, dispatch]);
+
   // ===== Recording =====
   const handleStartRecording = useCallback(
     async (config) => {
@@ -931,6 +963,8 @@ function AppContent() {
                 dispatch({ type: 'OPEN_PROJECT_MODAL', payload: id })
               }
               onOpenFolder={(id) => api.openProjectFolder(id)}
+              onExportProject={handleExportProject}
+              onImportProject={handleImportProject}
             />
           )}
 

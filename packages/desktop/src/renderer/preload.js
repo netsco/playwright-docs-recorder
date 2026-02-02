@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('move-recording', recordingId, fromProjectId, toProjectId),
   setLastOpenedProject: (projectId) => ipcRenderer.invoke('set-last-opened-project', projectId),
   openProjectFolder: (projectId) => ipcRenderer.invoke('open-project-folder', projectId),
+  exportProject: (projectId) => ipcRenderer.invoke('export-project', projectId),
+  importProject: () => ipcRenderer.invoke('import-project'),
   getRefetchQueue: (projectId) => ipcRenderer.invoke('get-refetch-queue', projectId),
 
   // ===== Recording controls =====

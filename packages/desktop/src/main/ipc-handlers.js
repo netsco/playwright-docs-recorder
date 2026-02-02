@@ -23,7 +23,9 @@ const {
   moveRecording,
   setLastOpenedProject,
   getProjectFolderPath,
-  migrateExistingRecordings
+  migrateExistingRecordings,
+  exportProjectAsZip,
+  importProjectFromZip
 } = require('./project-manager');
 
 // Current recording state
@@ -131,6 +133,55 @@ function registerIpcHandlers() {
     const settings = getSettingsStore();
     setLastOpenedProject(settings.get('outputDir'), projectId);
     return { success: true };
+  });
+
+  // ===== Project Import/Export =====
+
+  ipcMain.handle('export-project', async (event, projectId) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const project = getProject(outputDir, projectId);
+
+    if (!project) {
+      return { success: false, error: 'Project not found' };
+    }
+
+    const result = await dialog.showSaveDialog({
+      defaultPath: `${project.name.replace(/[<>:"/\\|?*]/g, '-')}.zip`,
+      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true };
+    }
+
+    try {
+      exportProjectAsZip(outputDir, projectId, result.filePath);
+      return { success: true, path: result.filePath };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('import-project', async () => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+      properties: ['openFile']
+    });
+
+    if (result.canceled || !result.filePaths.length) {
+      return { success: false, canceled: true };
+    }
+
+    try {
+      const project = importProjectFromZip(outputDir, result.filePaths[0]);
+      return { success: true, project };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   });
 
   // ===== Recording Controls =====
