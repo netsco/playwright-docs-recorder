@@ -1,5 +1,16 @@
 # @doc-recorder/desktop
 
+## 0.8.0
+
+### Minor Changes
+
+- Migrate desktop renderer to React with shadcn/ui, add light/dark theme toggle, non-destructive highlight overlays for screenshots, unsaved changes guard in markdown editor, redesigned frontmatter preview card, hover action recording and replay, and refetch improvements.
+
+### Patch Changes
+
+- Updated dependencies
+  - @doc-recorder/shared@0.6.0
+
 ## 0.7.0
 
 ### Minor Changes

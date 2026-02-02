@@ -1,6 +1,6 @@
 {
   "name": "@doc-recorder/desktop",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Desktop app for recording browser interactions with screenshots for documentation",
   "main": "src/main/main.js",
   "scripts": {
