@@ -22,13 +22,13 @@ export function Toolbar({ webviewRef, onStopRecording, currentUrl }) {
   };
 
   return (
-    <div className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-700 bg-slate-900 px-3">
+    <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
       {/* Navigation buttons */}
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-slate-400 hover:text-slate-200"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={handleBack}
           title="Go back"
         >
@@ -37,7 +37,7 @@ export function Toolbar({ webviewRef, onStopRecording, currentUrl }) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-slate-400 hover:text-slate-200"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={handleForward}
           title="Go forward"
         >
@@ -46,7 +46,7 @@ export function Toolbar({ webviewRef, onStopRecording, currentUrl }) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-slate-400 hover:text-slate-200"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={handleRefresh}
           title="Refresh"
         >
@@ -59,7 +59,7 @@ export function Toolbar({ webviewRef, onStopRecording, currentUrl }) {
         <Input
           readOnly
           value={currentUrl || ''}
-          className="h-8 cursor-default border-slate-700 bg-slate-800/50 text-xs text-slate-300 focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="h-8 cursor-default border-border bg-muted/50 text-xs text-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
           title={currentUrl}
         />
       </div>

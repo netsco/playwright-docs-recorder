@@ -20,12 +20,12 @@ export function ActionLog() {
   }
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-30 border-t border-slate-700 bg-slate-900/95 backdrop-blur-sm">
-      <div className="flex items-center justify-between border-b border-slate-800 px-3 py-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <div className="absolute bottom-0 left-0 right-0 z-30 border-t border-border bg-card/95 backdrop-blur-sm">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Action Log
         </span>
-        <span className="text-[10px] text-slate-600">
+        <span className="text-[10px] text-muted-foreground">
           {logEntries.length} entries
         </span>
       </div>
@@ -34,7 +34,7 @@ export function ActionLog() {
         className="max-h-40 overflow-y-auto p-2 font-mono text-xs"
       >
         {logEntries.length === 0 ? (
-          <div className="py-2 text-center text-slate-600">
+          <div className="py-2 text-center text-muted-foreground">
             Waiting for actions...
           </div>
         ) : (
@@ -42,14 +42,14 @@ export function ActionLog() {
             <div
               key={i}
               className={cn(
-                'flex gap-2 border-b border-slate-800/50 py-1 last:border-0',
+                'flex gap-2 border-b border-border/50 py-1 last:border-0',
                 entry.type === 'error' && 'text-red-400',
                 entry.type === 'screenshot' && 'text-teal-400',
                 entry.type === 'navigation' && 'text-amber-400',
-                (!entry.type || entry.type === 'action') && 'text-slate-400'
+                (!entry.type || entry.type === 'action') && 'text-muted-foreground'
               )}
             >
-              <span className="shrink-0 text-slate-600">
+              <span className="shrink-0 text-muted-foreground">
                 {entry.timestamp || '--:--:--'}
               </span>
               <span
@@ -58,7 +58,7 @@ export function ActionLog() {
                   entry.type === 'error' && 'text-red-500',
                   entry.type === 'screenshot' && 'text-teal-500',
                   entry.type === 'navigation' && 'text-amber-500',
-                  (!entry.type || entry.type === 'action') && 'text-slate-500'
+                  (!entry.type || entry.type === 'action') && 'text-muted-foreground'
                 )}
               >
                 {entry.type || 'action'}

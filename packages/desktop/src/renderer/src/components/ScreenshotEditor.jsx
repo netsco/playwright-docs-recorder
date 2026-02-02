@@ -948,13 +948,13 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* Toolbar */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
           {/* Select tool */}
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Select
             </span>
             <Button
@@ -965,7 +965,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
                 'h-7 w-7',
                 currentTool === 'select'
                   ? 'bg-teal-600 text-white hover:bg-teal-700'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
               title="Select (click to select and edit items)"
             >
@@ -973,11 +973,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             </Button>
           </div>
 
-          <div className="h-8 w-px bg-slate-700" />
+          <div className="h-8 w-px bg-border" />
 
           {/* Blur tools group */}
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Blur
             </span>
             <div className="flex items-center gap-0.5">
@@ -1006,7 +1006,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
                     (currentTool === tool.id && !selection) ||
                     (selection?.collection === 'regions' && regions[selection.index]?.type === tool.id)
                       ? 'bg-teal-600 text-white hover:bg-teal-700'
-                      : 'text-slate-400 hover:text-slate-200'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                   title={tool.label}
                 >
@@ -1016,11 +1016,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             </div>
           </div>
 
-          <div className="h-8 w-px bg-slate-700" />
+          <div className="h-8 w-px bg-border" />
 
           {/* Annotate tools group */}
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Annotate
             </span>
             <div className="flex items-center gap-0.5">
@@ -1034,7 +1034,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
                     'h-7 w-7',
                     currentTool === tool.id && !selection
                       ? 'bg-teal-600 text-white hover:bg-teal-700'
-                      : 'text-slate-400 hover:text-slate-200'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                   title={tool.label}
                 >
@@ -1044,11 +1044,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             </div>
           </div>
 
-          <div className="h-8 w-px bg-slate-700" />
+          <div className="h-8 w-px bg-border" />
 
           {/* Color */}
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Color
             </span>
             <input
@@ -1064,15 +1064,15 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
                   ));
                 }
               }}
-              className="h-7 w-7 cursor-pointer rounded border border-slate-600 bg-transparent p-0.5"
+              className="h-7 w-7 cursor-pointer rounded border border-border bg-transparent p-0.5"
             />
           </div>
 
-          <div className="h-8 w-px bg-slate-700" />
+          <div className="h-8 w-px bg-border" />
 
           {/* Stroke width */}
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Width
             </span>
             <div className="flex items-center gap-0.5">
@@ -1097,11 +1097,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
                     'flex h-7 w-7 items-center justify-center rounded transition-colors',
                     strokeWidth === sw
                       ? 'bg-teal-600'
-                      : 'bg-slate-800 hover:bg-slate-700'
+                      : 'bg-muted hover:bg-accent'
                   )}
                 >
                   <span
-                    className="rounded-full bg-slate-200"
+                    className="rounded-full bg-foreground"
                     style={{ width: `${Math.max(sw * 2.5, 4)}px`, height: `${Math.max(sw * 2.5, 4)}px` }}
                   />
                 </button>
@@ -1109,17 +1109,17 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             </div>
           </div>
 
-          <div className="h-8 w-px bg-slate-700" />
+          <div className="h-8 w-px bg-border" />
 
           {/* Zoom */}
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Zoom
             </span>
             <select
               value={zoomMode}
               onChange={(e) => setZoomMode(e.target.value)}
-              className="h-7 rounded border border-slate-600 bg-slate-800 px-1.5 pr-7 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="h-7 rounded border border-border bg-muted px-1.5 pr-7 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
               <option value="fit">Fit</option>
               <option value="50">50%</option>
@@ -1138,7 +1138,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             size="sm"
             onClick={handleUndo}
             disabled={undoStack.length === 0}
-            className="h-8 gap-1.5 px-2.5 text-xs text-slate-400 hover:text-slate-200"
+            className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
             title="Undo last action"
           >
             <Undo className="h-3.5 w-3.5" />
@@ -1149,7 +1149,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             size="sm"
             onClick={handleClear}
             disabled={regions.length === 0 && annotations.length === 0 && !highlightOverlay}
-            className="h-8 gap-1.5 px-2.5 text-xs text-slate-400 hover:text-slate-200"
+            className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
             title="Clear all edits"
           >
             <Eraser className="h-3.5 w-3.5" />
@@ -1166,13 +1166,13 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             Reset to Original
           </Button>
 
-          <div className="mx-1 h-6 w-px bg-slate-700" />
+          <div className="mx-1 h-6 w-px bg-border" />
 
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="h-8 px-3 text-xs text-slate-400 hover:text-slate-200"
+            className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground"
           >
             Cancel
           </Button>
@@ -1190,7 +1190,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       <div
         ref={containerRef}
         className={cn(
-          'min-h-0 flex-1 bg-slate-900/50',
+          'min-h-0 flex-1 bg-card/50',
           zoomMode === 'fit'
             ? 'flex overflow-hidden p-4'
             : 'flex overflow-auto p-4'
@@ -1215,16 +1215,16 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             }}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-500">Loading screenshot...</div>
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading screenshot...</div>
         )}
       </div>
 
       {/* Status bar */}
-      <div className="flex h-8 shrink-0 items-center justify-between border-t border-slate-800 px-4">
-        <span className="text-[11px] text-slate-500">
+      <div className="flex h-8 shrink-0 items-center justify-between border-t border-border px-4">
+        <span className="text-[11px] text-muted-foreground">
           {getStatusHint()}
         </span>
-        <span className="text-[11px] text-slate-500">
+        <span className="text-[11px] text-muted-foreground">
           {imageDimensions.width > 0
             ? `${imageDimensions.width} \u00d7 ${imageDimensions.height}px \u00b7 ${Math.round(scale * 100)}%`
             : ''}

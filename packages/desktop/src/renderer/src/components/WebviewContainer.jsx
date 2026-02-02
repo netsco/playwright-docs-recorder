@@ -273,9 +273,9 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       }}
     >
       {isLoading && (
-        <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center gap-4 z-10">
-          <div className="w-8 h-8 border-2 border-slate-700 border-t-teal-500 rounded-full animate-spin" />
-          <p className="text-slate-500 text-sm font-mono">Loading...</p>
+        <div className="absolute inset-0 bg-background/90 flex flex-col items-center justify-center gap-4 z-10">
+          <div className="w-8 h-8 border-2 border-border border-t-teal-500 rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm font-mono">Loading...</p>
         </div>
       )}
     </div>

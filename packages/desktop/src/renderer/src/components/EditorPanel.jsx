@@ -394,32 +394,32 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
   }, [activeHistoryId, onOpenScreenshotEditor]);
 
   return (
-    <div className="flex h-full flex-col bg-slate-950">
+    <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="flex h-10 shrink-0 items-center border-b border-slate-800 px-3">
+      <div className="flex h-10 shrink-0 items-center border-b border-border px-3">
         <Button
           variant="ghost"
           size="sm"
           onClick={onBack}
-          className="h-7 gap-1 px-2 text-slate-400 hover:text-slate-200"
+          className="h-7 gap-1 px-2 text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
           Back
         </Button>
-        <div className="mx-2 h-4 w-px bg-slate-700/50" />
-        <span className="text-sm font-medium text-slate-300">Markdown Editor</span>
+        <div className="mx-2 h-4 w-px bg-secondary/50" />
+        <span className="text-sm font-medium text-foreground">Markdown Editor</span>
       </div>
 
       {/* Split pane */}
       <div className="flex min-h-0 flex-1">
         {/* Editor side */}
-        <div className="flex flex-1 flex-col border-r border-slate-800">
+        <div className="flex flex-1 flex-col border-r border-border">
           {/* Toolbar */}
-          <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-slate-800/50 px-2">
+          <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-border/50 px-2">
             {TOOLBAR_GROUPS.map((group, gi) => (
               <div key={gi} className="flex items-center">
                 {gi > 0 && (
-                  <div className="mx-1.5 h-5 w-px bg-slate-700/50" />
+                  <div className="mx-1.5 h-5 w-px bg-secondary/50" />
                 )}
                 {group.map((item) => (
                   <button
@@ -427,14 +427,14 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
                     type="button"
                     title={item.label}
                     onClick={() => insertMarkdown(item)}
-                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   >
                     <item.icon className="h-4 w-4" />
                   </button>
                 ))}
               </div>
             ))}
-            <div className="mx-1.5 h-5 w-px bg-slate-700/50" />
+            <div className="mx-1.5 h-5 w-px bg-secondary/50" />
             <button
               type="button"
               title="Undo (Ctrl+Z)"
@@ -443,8 +443,8 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
               className={cn(
                 'rounded p-1.5 transition-colors',
                 canUndo
-                  ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                  : 'cursor-not-allowed text-slate-600'
+                  ? 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  : 'cursor-not-allowed text-muted-foreground'
               )}
             >
               <Undo className="h-4 w-4" />
@@ -457,8 +457,8 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
               className={cn(
                 'rounded p-1.5 transition-colors',
                 canRedo
-                  ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                  : 'cursor-not-allowed text-slate-600'
+                  ? 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  : 'cursor-not-allowed text-muted-foreground'
               )}
             >
               <Redo className="h-4 w-4" />
@@ -471,16 +471,16 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
             value={content}
             onChange={handleContentChange}
             spellCheck={false}
-            className="min-h-0 flex-1 resize-none bg-slate-950 p-4 font-mono text-sm leading-relaxed text-slate-300 placeholder:text-slate-600 focus:outline-none"
+            className="min-h-0 flex-1 resize-none bg-background p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
             placeholder="Start writing markdown..."
           />
 
           {/* Save/Discard footer */}
-          <div className="flex shrink-0 items-center justify-between border-t border-slate-800/50 px-3 py-2">
+          <div className="flex shrink-0 items-center justify-between border-t border-border/50 px-3 py-2">
             <span
               className={cn(
                 'text-xs',
-                hasUnsavedChanges ? 'text-amber-400' : 'text-slate-500'
+                hasUnsavedChanges ? 'text-amber-400' : 'text-muted-foreground'
               )}
             >
               {hasUnsavedChanges ? 'Unsaved changes' : 'Saved'}
@@ -491,7 +491,7 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
                 size="sm"
                 onClick={handleDiscard}
                 disabled={!hasUnsavedChanges}
-                className="h-7 text-xs text-slate-400 hover:text-slate-200"
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
               >
                 Discard
               </Button>
@@ -510,8 +510,8 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
         {/* Preview side */}
         <div className="flex flex-1 flex-col">
           {/* Preview header */}
-          <div className="flex h-10 shrink-0 items-center border-b border-slate-800/50 px-4">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="flex h-10 shrink-0 items-center border-b border-border/50 px-4">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Preview
             </span>
           </div>

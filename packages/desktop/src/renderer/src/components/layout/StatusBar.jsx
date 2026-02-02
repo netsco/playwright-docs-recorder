@@ -2,6 +2,7 @@ import { Monitor, List, Keyboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/context/AppContext';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function StatusBar() {
   const { state, dispatch } = useApp();
@@ -22,7 +23,7 @@ export function StatusBar() {
       : rawViewport;
 
   return (
-    <div className="flex h-7 shrink-0 items-center justify-between border-t border-slate-700 bg-slate-900 px-3 text-xs text-slate-400">
+    <div className="flex h-7 shrink-0 items-center justify-between border-t border-border bg-card px-3 text-xs text-muted-foreground">
       {/* Left: Status text */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate">{statusText}</span>
@@ -37,11 +38,11 @@ export function StatusBar() {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-coral-500" />
             </span>
             <span className="font-semibold text-coral-400">REC</span>
-            <span className="text-slate-500">|</span>
+            <span className="text-muted-foreground">|</span>
             <span>
               {actionCount} action{actionCount !== 1 ? 's' : ''}
             </span>
-            <span className="text-slate-500">|</span>
+            <span className="text-muted-foreground">|</span>
             <span>
               {screenshotCount} screenshot{screenshotCount !== 1 ? 's' : ''}
             </span>
@@ -49,45 +50,46 @@ export function StatusBar() {
         )}
       </div>
 
-      {/* Right: Toggle buttons + viewport (recording only) */}
-      {isRecording ? (
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'h-5 w-5 rounded',
-              showLog
-                ? 'bg-teal-900/50 text-teal-400'
-                : 'text-slate-500 hover:text-slate-300'
-            )}
-            onClick={() => dispatch({ type: 'TOGGLE_LOG' })}
-            title="Toggle action log"
-          >
-            <List className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'h-5 w-5 rounded',
-              showShortcuts
-                ? 'bg-teal-900/50 text-teal-400'
-                : 'text-slate-500 hover:text-slate-300'
-            )}
-            onClick={() => dispatch({ type: 'TOGGLE_SHORTCUTS' })}
-            title="Toggle shortcuts panel"
-          >
-            <Keyboard className="h-3 w-3" />
-          </Button>
-          <span className="ml-2 flex items-center gap-1 text-slate-500">
-            <Monitor className="h-3 w-3" />
-            {viewport}
-          </span>
-        </div>
-      ) : (
-        <div className="flex-1" />
-      )}
+      {/* Right: Toggle buttons + viewport (recording only) + theme toggle */}
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+        {isRecording && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-5 w-5 rounded',
+                showLog
+                  ? 'bg-teal-900/50 text-teal-400'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => dispatch({ type: 'TOGGLE_LOG' })}
+              title="Toggle action log"
+            >
+              <List className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-5 w-5 rounded',
+                showShortcuts
+                  ? 'bg-teal-900/50 text-teal-400'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => dispatch({ type: 'TOGGLE_SHORTCUTS' })}
+              title="Toggle shortcuts panel"
+            >
+              <Keyboard className="h-3 w-3" />
+            </Button>
+            <span className="ml-2 flex items-center gap-1 text-muted-foreground">
+              <Monitor className="h-3 w-3" />
+              {viewport}
+            </span>
+          </>
+        )}
+        <ThemeToggle />
+      </div>
     </div>
   );
 }

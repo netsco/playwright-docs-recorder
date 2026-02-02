@@ -209,7 +209,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
                   className={cn(
                     'h-8 w-8 rounded-full transition-all',
                     color === c.value
-                      ? 'ring-2 ring-offset-2 ring-offset-slate-900'
+                      ? 'ring-2 ring-offset-2 ring-offset-background'
                       : 'hover:scale-110'
                   )}
                   style={{
@@ -225,8 +225,8 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
           </div>
 
           {/* Default Recording Settings */}
-          <div className="space-y-3 border-t border-slate-700 pt-4">
-            <h3 className="text-sm font-medium text-slate-300">
+          <div className="space-y-3 border-t border-border pt-4">
+            <h3 className="text-sm font-medium text-foreground">
               Default Recording Settings
             </h3>
 

@@ -36,10 +36,10 @@ export default function RefetchModal({ open, onOpenChange, refetchState, onCance
           {isProgress && (
             <div className="space-y-4">
               {text && (
-                <p className="text-sm text-slate-300">{text}</p>
+                <p className="text-sm text-foreground">{text}</p>
               )}
               <div className="space-y-2">
-                <div className="flex justify-between text-xs text-slate-400">
+                <div className="flex justify-between text-xs text-muted-foreground">
                   <span>
                     {progress} of {total}
                   </span>
@@ -48,7 +48,7 @@ export default function RefetchModal({ open, onOpenChange, refetchState, onCance
                 <Progress value={percentage} />
               </div>
               {currentItem && (
-                <p className="text-xs text-slate-500 truncate">{currentItem}</p>
+                <p className="text-xs text-muted-foreground truncate">{currentItem}</p>
               )}
             </div>
           )}
@@ -62,16 +62,16 @@ export default function RefetchModal({ open, onOpenChange, refetchState, onCance
                   <CheckCircle className="h-5 w-5 text-teal-400 shrink-0 mt-0.5" />
                 )}
                 <div className="space-y-1">
-                  <p className="text-sm text-slate-200">{summary.text}</p>
+                  <p className="text-sm text-foreground">{summary.text}</p>
                   {summary.details && (
-                    <p className="text-xs text-slate-400">{summary.details}</p>
+                    <p className="text-xs text-muted-foreground">{summary.details}</p>
                   )}
                 </div>
               </div>
 
               {hasErrors && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-slate-400">Errors:</p>
+                  <p className="text-xs font-medium text-muted-foreground">Errors:</p>
                   <ul className="space-y-1 max-h-32 overflow-y-auto">
                     {summary.errors.map((error, i) => (
                       <li

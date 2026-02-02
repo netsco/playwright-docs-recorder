@@ -28,13 +28,13 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
   };
 
   return (
-    <div className="h-full w-full overflow-auto bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+    <div className="h-full w-full overflow-auto bg-gradient-to-b from-background via-card to-background">
       <div className="mx-auto max-w-3xl px-6 py-10">
         {/* Header */}
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">Projects</h1>
-            <p className="mt-1 text-sm text-slate-400">
+            <h1 className="text-2xl font-bold text-foreground">Projects</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               Select a project to start a new recording or manage existing ones.
             </p>
           </div>
@@ -55,7 +55,7 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                 key={project.id}
                 type="button"
                 onClick={() => onSelectProject(project)}
-                className="group relative rounded-lg border border-slate-700/50 bg-slate-800/50 p-4 text-left transition-all hover:border-slate-600 hover:bg-slate-800"
+                className="group relative rounded-lg border border-border/50 bg-muted/50 p-4 text-left transition-all hover:border-border hover:bg-muted"
               >
                 {/* Top row: color dot + name + action buttons */}
                 <div className="flex items-center justify-between">
@@ -64,7 +64,7 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                       className="h-3 w-3 shrink-0 rounded-full"
                       style={{ backgroundColor: project.color || '#14b8a6' }}
                     />
-                    <span className="truncate text-sm font-medium text-slate-100">
+                    <span className="truncate text-sm font-medium text-foreground">
                       {project.name}
                     </span>
                   </div>
@@ -75,7 +75,7 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                       role="button"
                       tabIndex={0}
                       title="Open folder"
-                      className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                      className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation();
                         onOpenFolder(project.id);
@@ -93,7 +93,7 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                       role="button"
                       tabIndex={0}
                       title="Edit project"
-                      className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                      className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditProject(project.id);
@@ -112,19 +112,19 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
 
                 {/* Description */}
                 {project.description && (
-                  <p className="mt-2 line-clamp-2 text-xs text-slate-400">
+                  <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
                     {project.description}
                   </p>
                 )}
 
                 {/* Meta: recording count + last modified */}
-                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                   <span>
                     {project.recordingCount ?? 0} recording{project.recordingCount !== 1 ? 's' : ''}
                   </span>
                   {project.lastModified && (
                     <>
-                      <span className="text-slate-700">&middot;</span>
+                      <span className="text-border">&middot;</span>
                       <span>{formatDate(project.lastModified)}</span>
                     </>
                   )}
@@ -134,10 +134,10 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
           </div>
         ) : (
           /* Empty state */
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-700 py-16">
-            <Folder className="mb-4 h-12 w-12 text-slate-600" />
-            <p className="text-sm font-medium text-slate-400">No projects yet</p>
-            <p className="mt-1 text-xs text-slate-500">
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
+            <Folder className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-sm font-medium text-muted-foreground">No projects yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               Create a project to start recording documentation.
             </p>
             <Button
