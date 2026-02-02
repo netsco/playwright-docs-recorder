@@ -216,7 +216,11 @@ export function Sidebar({
                       setOpenMenuId(null);
                     } else {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      setMenuPos({ top: rect.bottom + 4, left: rect.right - 160 });
+                      const sidebarEl = e.currentTarget.closest('.w-64');
+                      const sidebarRight = sidebarEl
+                        ? sidebarEl.getBoundingClientRect().right
+                        : rect.right;
+                      setMenuPos({ top: rect.bottom + 4, left: sidebarRight - 192 - 8 });
                       setOpenMenuId(rec.id);
                     }
                   }}
@@ -229,11 +233,11 @@ export function Sidebar({
                   createPortal(
                     <div
                       ref={menuRef}
-                      className="fixed z-[9999] w-40 rounded-md border border-border bg-muted py-1 shadow-lg"
+                      className="fixed z-[9999] w-48 rounded-md border border-border bg-background py-1 shadow-lg whitespace-nowrap"
                       style={{ top: menuPos.top, left: menuPos.left }}
                     >
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-muted"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);
@@ -243,7 +247,7 @@ export function Sidebar({
                         <FolderOpen className="h-3 w-3" /> Open Folder
                       </button>
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-muted"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);
@@ -253,7 +257,7 @@ export function Sidebar({
                         <RotateCw className="h-3 w-3" /> Refetch Screenshots
                       </button>
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-muted"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);
@@ -263,7 +267,7 @@ export function Sidebar({
                         <ArrowRightLeft className="h-3 w-3" /> Move to Project
                       </button>
                       <button
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-accent"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-muted"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(null);

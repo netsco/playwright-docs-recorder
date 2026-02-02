@@ -45,10 +45,10 @@ function renderFrontmatterBox(fields) {
   const rows = Object.entries(fields)
     .map(
       ([k, v]) =>
-        `<tr><td style="padding:2px 12px 2px 0;font-weight:600;color:#94a3b8;white-space:nowrap;vertical-align:top">${escapeForHtml(k)}</td><td style="padding:2px 0;color:#cbd5e1">${escapeForHtml(v)}</td></tr>`
+        `<tr><td>${escapeForHtml(k)}</td><td>${escapeForHtml(v)}</td></tr>`
     )
     .join('');
-  return `<div style="margin-bottom:20px;padding:12px 16px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:13px"><table style="border-collapse:collapse">${rows}</table></div>`;
+  return `<div class="md-frontmatter"><table>${rows}</table></div>`;
 }
 
 function escapeForHtml(str) {
@@ -82,89 +82,77 @@ function createMarkedInstance(recordingDir, cacheBuster) {
       const titleAttr = title ? ` title="${escapeForHtml(title)}"` : '';
       const filename = (href || '').split('/').pop() || '';
 
-      return `<div class="editor-image-container" style="position:relative;margin:16px 0;text-align:center">
-        <img src="${src}" alt="${altText}"${titleAttr} style="max-width:100%;border-radius:6px;border:1px solid #334155" loading="lazy" />
-        <button data-edit-screenshot="${escapeForHtml(filename)}" style="position:absolute;top:8px;right:8px;padding:4px 10px;background:rgba(15,23,42,0.85);color:#5eead4;border:1px solid #334155;border-radius:4px;font-size:12px;cursor:pointer;opacity:0;transition:opacity 0.15s" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0">Edit</button>
-        <style>.editor-image-container:hover button{opacity:1 !important}</style>
+      return `<div class="editor-image-container">
+        <img src="${src}" alt="${altText}"${titleAttr} loading="lazy" />
+        <button data-edit-screenshot="${escapeForHtml(filename)}">Edit</button>
       </div>`;
     },
 
     heading({ tokens, depth }) {
       const text = this.parser.parseInline(tokens);
-      const sizes = {
-        1: 'font-size:24px;font-weight:700;margin:24px 0 12px',
-        2: 'font-size:20px;font-weight:600;margin:20px 0 10px',
-        3: 'font-size:17px;font-weight:600;margin:16px 0 8px',
-        4: 'font-size:15px;font-weight:600;margin:14px 0 6px',
-        5: 'font-size:14px;font-weight:600;margin:12px 0 6px',
-        6: 'font-size:13px;font-weight:600;margin:10px 0 4px',
-      };
-      return `<h${depth} style="${sizes[depth] || ''};color:#e2e8f0;line-height:1.3">${text}</h${depth}>`;
+      return `<h${depth}>${text}</h${depth}>`;
     },
 
-    code({ text, lang }) {
-      return `<pre style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:12px 16px;overflow-x:auto;margin:12px 0"><code style="font-family:'Fira Code','Cascadia Code',Consolas,monospace;font-size:13px;color:#a5f3fc;line-height:1.5">${escapeForHtml(text)}</code></pre>`;
+    code({ text }) {
+      return `<pre><code>${escapeForHtml(text)}</code></pre>`;
     },
 
     codespan({ text }) {
-      return `<code style="background:#1e293b;padding:2px 6px;border-radius:3px;font-family:'Fira Code','Cascadia Code',Consolas,monospace;font-size:0.9em;color:#a5f3fc">${escapeForHtml(text)}</code>`;
+      return `<code>${escapeForHtml(text)}</code>`;
     },
 
     link({ href, title, tokens }) {
       const text = this.parser.parseInline(tokens);
       const titleAttr = title ? ` title="${escapeForHtml(title)}"` : '';
-      return `<a href="${escapeForHtml(href || '')}"${titleAttr} style="color:#5eead4;text-decoration:underline;text-decoration-color:#5eead480">${text}</a>`;
+      return `<a href="${escapeForHtml(href || '')}"${titleAttr}>${text}</a>`;
     },
 
     list({ ordered, items }) {
       const tag = ordered ? 'ol' : 'ul';
-      const style = ordered
-        ? 'list-style:decimal;padding-left:24px;margin:8px 0;color:#cbd5e1'
-        : 'list-style:disc;padding-left:24px;margin:8px 0;color:#cbd5e1';
       const body = items
         .map((item) => this.listitem(item))
         .join('');
-      return `<${tag} style="${style}">${body}</${tag}>`;
+      return `<${tag}>${body}</${tag}>`;
     },
 
     listitem({ tokens }) {
       const text = this.parser.parse(tokens);
-      return `<li style="margin:4px 0;line-height:1.6">${text}</li>`;
+      return `<li>${text}</li>`;
     },
 
     paragraph({ tokens }) {
       const text = this.parser.parseInline(tokens);
-      return `<p style="margin:10px 0;line-height:1.7;color:#cbd5e1">${text}</p>`;
+      return `<p>${text}</p>`;
     },
 
     blockquote({ tokens }) {
       const body = this.parser.parse(tokens);
-      return `<blockquote style="border-left:3px solid #5eead4;padding:4px 16px;margin:12px 0;color:#94a3b8;background:#0f172a80;border-radius:0 4px 4px 0">${body}</blockquote>`;
+      return `<blockquote>${body}</blockquote>`;
     },
 
     hr() {
-      return '<hr style="border:none;border-top:1px solid #334155;margin:20px 0" />';
+      return '<hr />';
     },
 
     table({ header, rows }) {
       const headerHtml = header
         .map((cell) => {
           const content = this.parser.parseInline(cell.tokens);
-          return `<th style="padding:8px 12px;border:1px solid #334155;color:#e2e8f0;font-weight:600;text-align:left">${content}</th>`;
+          return `<th>${content}</th>`;
         })
         .join('');
       const rowsHtml = rows
         .map(
           (row) =>
-            `<tr style="border-bottom:1px solid #334155">${row
+            `<tr>${row
               .map((cell) => {
                 const content = this.parser.parseInline(cell.tokens);
-                return `<td style="padding:8px 12px;border:1px solid #334155;color:#cbd5e1">${content}</td>`;
+                return `<td>${content}</td>`;
               })
               .join('')}</tr>`
         )
         .join('');
-      return `<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:14px"><thead style="background:#1e293b"><tr style="border-bottom:1px solid #334155">${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+      return `<table><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
     },
   };
 
@@ -519,7 +507,7 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
           {/* Preview content */}
           <div
             ref={previewRef}
-            className="min-h-0 flex-1 overflow-auto p-6"
+            className="md-preview min-h-0 flex-1 overflow-auto p-6"
             dangerouslySetInnerHTML={{ __html: previewHtml }}
           />
         </div>
