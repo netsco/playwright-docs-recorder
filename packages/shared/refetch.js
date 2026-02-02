@@ -64,11 +64,10 @@ async function refetchScreenshots(recordingDir, options = {}) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
 
-    // Helper to highlight an element
-    const highlight = async (selector) => {
+    // Helper to get element bounding rect for highlight overlay
+    const getHighlightRect = async (selector) => {
       try {
-        await page.evaluate((sel) => {
-          // Handle Playwright text selectors
+        return await page.evaluate((sel) => {
           let el;
           if (sel.includes(':text(')) {
             const match = sel.match(/:text\("([^"]+)"\)/);
@@ -82,13 +81,20 @@ async function refetchScreenshots(recordingDir, options = {}) {
           } else {
             el = document.querySelector(sel);
           }
-          if (el) {
-            el.style.outline = '3px solid #ff6b35';
-            el.style.outlineOffset = '2px';
-          }
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return null;
+          const cs = window.getComputedStyle(el);
+          return {
+            x: Math.round(rect.x - 3),
+            y: Math.round(rect.y - 3),
+            width: Math.round(rect.width + 6),
+            height: Math.round(rect.height + 6),
+            borderRadius: Math.round(parseFloat(cs.borderRadius) || 4)
+          };
         }, selector);
       } catch {
-        // Ignore highlight errors
+        return null;
       }
     };
 
@@ -119,16 +125,31 @@ async function refetchScreenshots(recordingDir, options = {}) {
         actionIndex++;
         if (onProgress) onProgress(action, actionIndex, totalActions);
 
-        // Apply highlight if present
-        if (action.highlight) {
-          await highlight(action.highlight);
+        // Resolve highlight element rect if present
+        let highlightOverlay = action.highlightOverlay || null;
+        if (action.highlight && !highlightOverlay) {
+          highlightOverlay = await getHighlightRect(action.highlight);
         }
 
-        // Take screenshot
+        // Take clean screenshot (no inline highlight styles)
         const screenshotPath = path.join(screenshotsDir, action.filename);
         try {
           await page.screenshot({ path: screenshotPath, fullPage: action.fullPage || false });
           screenshotCount++;
+
+          // Backup original if we have any overlays to bake
+          const hasOverlays = highlightOverlay ||
+            (action.blurRegions && action.blurRegions.length > 0) ||
+            (action.annotations && action.annotations.length > 0);
+
+          if (hasOverlays) {
+            const originalsDir = path.join(recordingDir, 'screenshots-original');
+            fs.mkdirSync(originalsDir, { recursive: true });
+            const originalPath = path.join(originalsDir, action.filename);
+            if (!fs.existsSync(originalPath)) {
+              fs.copyFileSync(screenshotPath, originalPath);
+            }
+          }
 
           // Reapply blur regions if present in the action
           if (action.blurRegions && action.blurRegions.length > 0) {
@@ -145,33 +166,36 @@ async function refetchScreenshots(recordingDir, options = {}) {
             }
           }
 
-          // Reapply annotations if present in the action
+          // Build combined annotations: highlight overlay first, then user annotations
+          const allAnnotations = [];
+          if (highlightOverlay) {
+            allAnnotations.push({ type: 'elementHighlight', ...highlightOverlay });
+          }
           if (action.annotations && action.annotations.length > 0) {
+            allAnnotations.push(...action.annotations);
+          }
+
+          // Reapply annotations if any
+          if (allAnnotations.length > 0) {
             const annotationRenderer = getAnnotationRenderer();
             if (annotationRenderer) {
               try {
-                await annotationRenderer.renderAnnotations(screenshotPath, action.annotations, {
+                await annotationRenderer.renderAnnotations(screenshotPath, allAnnotations, {
                   outputPath: screenshotPath
                 });
-                console.log(`  Applied ${action.annotations.length} annotation(s) to ${action.filename}`);
+                console.log(`  Applied ${allAnnotations.length} annotation(s) to ${action.filename}`);
               } catch (err) {
                 console.warn(`  Failed to apply annotations to ${action.filename}: ${err.message}`);
               }
             }
           }
+
+          // Update highlightOverlay in the action for persistence
+          if (highlightOverlay && !action.highlightOverlay) {
+            action.highlightOverlay = { ...highlightOverlay, selector: action.highlight };
+          }
         } catch (error) {
           console.error(`Failed to take screenshot ${action.filename}: ${error.message}`);
-        }
-
-        // Clear highlight
-        if (action.highlight) {
-          await page.evaluate(() => {
-            const highlighted = document.querySelector('[style*="outline: 3px solid"]');
-            if (highlighted) {
-              highlighted.style.outline = '';
-              highlighted.style.outlineOffset = '';
-            }
-          });
         }
       }
       // Skip click, fill, and note actions
@@ -179,6 +203,9 @@ async function refetchScreenshots(recordingDir, options = {}) {
 
     await browser.close();
     browser = null;
+
+    // Save updated actions.json (may have new highlightOverlay data from resolved selectors)
+    fs.writeFileSync(actionsPath, JSON.stringify(recording, null, 2));
 
     // Regenerate markdown
     const mdFilename = recording.mdFilename || 'screenshots.md';

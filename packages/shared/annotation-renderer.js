@@ -80,6 +80,9 @@ function createAnnotationSVG(annotations, width, height) {
       case 'highlight':
         elements += renderHighlight(anno, color);
         break;
+      case 'elementHighlight':
+        elements += renderElementHighlight(anno);
+        break;
     }
   }
 
@@ -205,6 +208,26 @@ function renderHighlight(anno, color) {
 
   return `<rect x="${x}" y="${y}" width="${width}" height="${height}"
     fill="${color}" fill-opacity="${opacity}" stroke="none" />`;
+}
+
+/**
+ * Render element highlight overlay (orange rounded rect with glow)
+ */
+function renderElementHighlight(anno) {
+  const x = Math.round(anno.x);
+  const y = Math.round(anno.y);
+  const width = Math.round(anno.width || anno.w || 0);
+  const height = Math.round(anno.height || anno.h || 0);
+  const rx = anno.borderRadius || 4;
+
+  // Outer glow
+  let svg = `<rect x="${x - 4}" y="${y - 4}" width="${width + 8}" height="${height + 8}" rx="${rx + 2}"
+    fill="none" stroke="rgba(255,107,53,0.3)" stroke-width="4" />`;
+  // Inner highlight rect with border + fill
+  svg += `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}"
+    stroke="#ff6b35" stroke-width="3" fill="rgba(255,107,53,0.15)" />`;
+
+  return svg;
 }
 
 /**

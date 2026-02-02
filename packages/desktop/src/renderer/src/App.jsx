@@ -260,9 +260,21 @@ function AppContent() {
         const wv = webviewRef.current;
         if (!wv) return;
 
-        // Hide scrollbars during capture
+        // Capture highlight overlay rect before hiding it
+        let highlightOverlay = null;
+        if (selector) {
+          try {
+            highlightOverlay = await wv.executeJavaScript(
+              `(function(){const o=document.getElementById('__highlight-overlay');if(!o||o.style.display==='none')return null;const r=o.getBoundingClientRect();if(r.width===0||r.height===0)return null;return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),borderRadius:4};})()`
+            );
+          } catch {
+            // Ignore errors reading overlay rect
+          }
+        }
+
+        // Hide scrollbars and highlight overlay during capture
         await wv.executeJavaScript(
-          `(function(){const s=document.createElement('style');s.id='__doc-recorder-hide-scrollbars';s.textContent='*::-webkit-scrollbar{display:none!important}*{scrollbar-width:none!important;-ms-overflow-style:none!important}';document.head.appendChild(s);})()`
+          `(function(){const s=document.createElement('style');s.id='__doc-recorder-hide-scrollbars';s.textContent='*::-webkit-scrollbar{display:none!important}*{scrollbar-width:none!important;-ms-overflow-style:none!important}';document.head.appendChild(s);const o=document.getElementById('__highlight-overlay');if(o)o.style.display='none';})()`
         );
 
         let dataUrl;
@@ -273,10 +285,10 @@ function AppContent() {
           dataUrl = image.toDataURL();
         }
 
-        // Restore scrollbars
+        // Restore scrollbars and highlight overlay
         await wv
           .executeJavaScript(
-            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();})()`
+            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
           )
           .catch(() => {});
 
@@ -285,6 +297,7 @@ function AppContent() {
           note,
           fullPage,
           imageDataUrl: dataUrl,
+          highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector } : undefined,
         });
 
         if (result.success) {
@@ -299,10 +312,10 @@ function AppContent() {
           });
         }
       } catch (error) {
-        // Restore scrollbars on error
+        // Restore scrollbars and highlight overlay on error
         webviewRef.current
           ?.executeJavaScript(
-            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();})()`
+            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
           )
           .catch(() => {});
         dispatch({
@@ -541,17 +554,25 @@ function AppContent() {
           wv.navigate(action.url);
           await new Promise((r) => setTimeout(r, 1500));
         } else if (action.type === 'screenshot') {
-          // Apply highlight if present
-          if (action.highlight) {
-            wv.send('apply-highlight', action.highlight);
-            await new Promise((r) => setTimeout(r, 200));
+          // Resolve highlight element rect if present (for non-destructive overlay)
+          let highlightOverlay = action.highlightOverlay || null;
+          if (action.highlight && !highlightOverlay) {
+            try {
+              highlightOverlay = await wv.executeJavaScript(
+                `(function(){const sel=${JSON.stringify(action.highlight)};let el;if(sel.includes(':text(')){const m=sel.match(/:text\\("([^"]+)"\\)/);if(m){const t=m[1];const tm=sel.match(/^(\\w+):/);const tag=tm?tm[1]:'*';el=Array.from(document.querySelectorAll(tag)).find(e=>e.textContent&&e.textContent.trim().includes(t));}}else{el=document.querySelector(sel);}if(!el)return null;const r=el.getBoundingClientRect();if(r.width===0||r.height===0)return null;const cs=window.getComputedStyle(el);return{x:Math.round(r.x-3),y:Math.round(r.y-3),width:Math.round(r.width+6),height:Math.round(r.height+6),borderRadius:Math.round(parseFloat(cs.borderRadius)||4)};})()`
+              );
+            } catch {
+              // Ignore errors resolving highlight rect
+            }
           }
 
+          // Capture clean screenshot (no highlight overlay in page)
           const image = await wv.capturePage();
           await api.saveRefetchedScreenshot({
             recordingId,
             filename: action.filename,
             imageDataUrl: image.toDataURL(),
+            highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector: action.highlight } : undefined,
             projectId: state.currentProjectId,
           });
 
@@ -568,11 +589,6 @@ function AppContent() {
                 view: 'progress',
               },
             });
-          }
-
-          // Clear highlight after capture
-          if (action.highlight) {
-            wv.send('clear-highlight');
           }
         }
       }

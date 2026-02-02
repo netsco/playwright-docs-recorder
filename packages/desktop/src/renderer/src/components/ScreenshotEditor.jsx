@@ -129,6 +129,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
 
   const [regions, setRegions] = useState([]);
   const [annotations, setAnnotations] = useState([]);
+  const [highlightOverlay, setHighlightOverlay] = useState(null);
   const [currentTool, setCurrentTool] = useState('blur');
   const [isDrawing, setIsDrawing] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -189,6 +190,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
 
     setRegions([]);
     setAnnotations([]);
+    setHighlightOverlay(null);
     setUndoStack([]);
     setCalloutCounter(1);
     setCurrentTool('blur');
@@ -219,6 +221,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         if (result?.success) {
           if (result.blurRegions?.length) setRegions(result.blurRegions);
           if (result.annotations?.length) setAnnotations(result.annotations);
+          if (result.highlightOverlay) setHighlightOverlay(result.highlightOverlay);
         }
       }).catch(() => {});
     }
@@ -285,10 +288,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       {
         regions: [...regions],
         annotations: [...annotations],
+        highlightOverlay,
         calloutCounter,
       },
     ]);
-  }, [regions, annotations, calloutCounter]);
+  }, [regions, annotations, highlightOverlay, calloutCounter]);
 
   // Delete/Backspace to remove selected item
   useEffect(() => {
@@ -299,7 +303,9 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         e.preventDefault();
         pushUndo();
-        if (selection.collection === 'regions') {
+        if (selection.collection === 'highlight') {
+          setHighlightOverlay(null);
+        } else if (selection.collection === 'regions') {
           setRegions((prev) => prev.filter((_, i) => i !== selection.index));
         } else {
           setAnnotations((prev) => prev.filter((_, i) => i !== selection.index));
@@ -455,6 +461,32 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
     []
   );
 
+  const drawHighlightOverlay = useCallback(
+    (ctx, hl) => {
+      if (!hl) return;
+      const { x, y, width, height, borderRadius = 4 } = hl;
+      ctx.save();
+      // Outer glow
+      ctx.strokeStyle = 'rgba(255, 107, 53, 0.3)';
+      ctx.lineWidth = 4;
+      const pad = 4;
+      const outerRx = borderRadius + 2;
+      ctx.beginPath();
+      ctx.roundRect(x - pad, y - pad, width + pad * 2, height + pad * 2, outerRx);
+      ctx.stroke();
+      // Inner highlight rect
+      ctx.strokeStyle = '#ff6b35';
+      ctx.lineWidth = 3;
+      ctx.fillStyle = 'rgba(255, 107, 53, 0.15)';
+      ctx.beginPath();
+      ctx.roundRect(x, y, width, height, borderRadius);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    },
+    []
+  );
+
   const drawAnnotation = useCallback(
     (ctx, ann) => {
       switch (ann.type) {
@@ -494,6 +526,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
     ctx.scale(scale, scale);
     ctx.drawImage(img, 0, 0);
 
+    // Draw highlight overlay first (behind everything else)
+    if (highlightOverlay) {
+      drawHighlightOverlay(ctx, highlightOverlay);
+    }
+
     // Draw committed regions
     for (const region of regions) {
       drawRegionPreview(ctx, region.type, region.x, region.y, region.w, region.h);
@@ -504,8 +541,21 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       drawAnnotation(ctx, ann);
     }
 
+    // Draw selection indicator for highlight overlay
+    if (selection && selection.collection === 'highlight' && highlightOverlay) {
+      ctx.save();
+      ctx.setLineDash([6, 3]);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5 / scale;
+      ctx.strokeRect(
+        highlightOverlay.x - 6, highlightOverlay.y - 6,
+        highlightOverlay.width + 12, highlightOverlay.height + 12
+      );
+      ctx.restore();
+    }
+
     // Draw selection indicator
-    if (selection) {
+    if (selection && selection.collection !== 'highlight') {
       const item = selection.collection === 'regions'
         ? regions[selection.index]
         : annotations[selection.index];
@@ -591,6 +641,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
     scale,
     regions,
     annotations,
+    highlightOverlay,
     isDrawing,
     currentTool,
     startX,
@@ -601,6 +652,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
     strokeWidth,
     drawRegionPreview,
     drawAnnotation,
+    drawHighlightOverlay,
     drawArrowShape,
     drawCircleShape,
     drawRectOutline,
@@ -623,7 +675,18 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       const { x, y } = toImageCoords(e);
 
       if (currentTool === 'select') {
-        const hit = findItemAtPoint(x, y, regions, annotations);
+        // Check highlight overlay first
+        let hit = null;
+        if (highlightOverlay && pointInRect(
+          x, y,
+          highlightOverlay.x - 4, highlightOverlay.y - 4,
+          highlightOverlay.width + 8, highlightOverlay.height + 8
+        )) {
+          hit = { collection: 'highlight', index: 0 };
+        }
+        if (!hit) {
+          hit = findItemAtPoint(x, y, regions, annotations);
+        }
         if (hit) {
           // If clicking the already-selected item, start a drag
           if (selection && selection.collection === hit.collection && selection.index === hit.index) {
@@ -634,9 +697,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             // Select new item (next click will drag)
             setSelection(hit);
             // Sync color/width pickers to the selected item's properties
-            const item = hit.collection === 'regions' ? regions[hit.index] : annotations[hit.index];
-            if (item.color) setStrokeColor(item.color);
-            if (item.width) setStrokeWidth(item.width);
+            if (hit.collection !== 'highlight') {
+              const item = hit.collection === 'regions' ? regions[hit.index] : annotations[hit.index];
+              if (item.color) setStrokeColor(item.color);
+              if (item.width) setStrokeWidth(item.width);
+            }
           }
         } else {
           setSelection(null);
@@ -684,7 +749,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       setCurrentX(x);
       setCurrentY(y);
     },
-    [currentTool, toImageCoords, pushUndo, strokeColor, calloutCounter, onOpenTextInput, regions, annotations, selection]
+    [currentTool, toImageCoords, pushUndo, strokeColor, calloutCounter, onOpenTextInput, regions, annotations, highlightOverlay, selection]
   );
 
   const handleMouseMove = useCallback(
@@ -695,7 +760,13 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         const dy = y - dragStart.y;
         setDragStart({ x, y });
 
-        if (selection.collection === 'regions') {
+        if (selection.collection === 'highlight') {
+          setHighlightOverlay((prev) => prev ? {
+            ...prev,
+            x: prev.x + dx,
+            y: prev.y + dy,
+          } : prev);
+        } else if (selection.collection === 'regions') {
           setRegions((prev) => prev.map((r, i) =>
             i === selection.index ? { ...r, x: r.x + dx, y: r.y + dy } : r
           ));
@@ -785,19 +856,21 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
     setUndoStack((s) => s.slice(0, -1));
     setRegions(prev.regions);
     setAnnotations(prev.annotations);
+    setHighlightOverlay(prev.highlightOverlay);
     setCalloutCounter(prev.calloutCounter);
     setSelection(null);
   }, [undoStack]);
 
   // Clear all
   const handleClear = useCallback(() => {
-    if (regions.length === 0 && annotations.length === 0) return;
+    if (regions.length === 0 && annotations.length === 0 && !highlightOverlay) return;
     pushUndo();
     setRegions([]);
     setAnnotations([]);
+    setHighlightOverlay(null);
     setCalloutCounter(1);
     setSelection(null);
-  }, [regions, annotations, pushUndo]);
+  }, [regions, annotations, highlightOverlay, pushUndo]);
 
   // Reset to original
   const handleReset = useCallback(async () => {
@@ -811,6 +884,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         imageRef.current = loadedImg;
         setRegions([]);
         setAnnotations([]);
+        setHighlightOverlay(null);
         setUndoStack([]);
         setCalloutCounter(1);
         setSelection(null);
@@ -839,6 +913,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         filename,
         blurRegions: regions,
         annotations,
+        highlightOverlay,
         projectId: state.currentProjectId,
       });
       if (onSave) onSave();
@@ -855,6 +930,9 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
 
   function getStatusHint() {
     if (selection) {
+      if (selection.collection === 'highlight') {
+        return 'Selected element highlight \u2014 Drag to move \u00b7 Press Delete to remove';
+      }
       const item = selection.collection === 'regions'
         ? regions[selection.index]
         : annotations[selection.index];
@@ -1070,7 +1148,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             variant="ghost"
             size="sm"
             onClick={handleClear}
-            disabled={regions.length === 0 && annotations.length === 0}
+            disabled={regions.length === 0 && annotations.length === 0 && !highlightOverlay}
             className="h-8 gap-1.5 px-2.5 text-xs text-slate-400 hover:text-slate-200"
             title="Clear all edits"
           >
