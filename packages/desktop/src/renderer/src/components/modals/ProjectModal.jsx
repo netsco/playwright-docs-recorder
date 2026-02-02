@@ -151,7 +151,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
 
         <div className="space-y-4">
           {/* Project Name */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="project-name">
               Project Name <span className="text-red-400">*</span>
             </Label>
@@ -165,7 +165,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
           </div>
 
           {/* Project Folder */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="project-folder">Project Folder</Label>
             <div className="flex gap-2">
               <Input
@@ -187,7 +187,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
           </div>
 
           {/* Description */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="project-description">Description</Label>
             <Textarea
               id="project-description"
@@ -199,7 +199,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
           </div>
 
           {/* Color Picker */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label>Color</Label>
             <div className="flex gap-2">
               {PROJECT_COLORS.map((c) => (
@@ -226,12 +226,12 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
 
           {/* Default Recording Settings */}
           <div className="space-y-3 border-t border-border pt-4">
-            <h3 className="text-sm font-medium text-foreground">
+            <h3 className="text-sm font-medium text-foreground pl-1">
               Default Recording Settings
             </h3>
 
             {/* Site URL */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label htmlFor="site-url">Site URL</Label>
               <Input
                 id="site-url"
@@ -243,7 +243,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
             </div>
 
             {/* Viewport Preset */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Viewport</Label>
               <Select value={viewportPreset} onValueChange={handleViewportChange}>
                 <SelectTrigger>
@@ -262,7 +262,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
             {/* Custom Viewport */}
             {viewportPreset === 'custom' && (
               <div className="flex gap-3">
-                <div className="space-y-2 flex-1">
+                <div className="space-y-3 flex-1">
                   <Label htmlFor="custom-width">Width</Label>
                   <Input
                     id="custom-width"
@@ -271,7 +271,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
                     onChange={(e) => setCustomWidth(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2 flex-1">
+                <div className="space-y-3 flex-1">
                   <Label htmlFor="custom-height">Height</Label>
                   <Input
                     id="custom-height"
@@ -284,7 +284,7 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
             )}
 
             {/* CSS Injection */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="inject-css"

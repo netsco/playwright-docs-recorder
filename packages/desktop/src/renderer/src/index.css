@@ -4,27 +4,27 @@
 
 /* Light theme (default) */
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --card: #f8fafc;
-  --card-foreground: #0f172a;
-  --border: #e2e8f0;
+  --background: #f8fafc;
+  --foreground: #0c1222;
+  --card: #ffffff;
+  --card-foreground: #0c1222;
+  --border: #d5dce6;
   --input: #ffffff;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --secondary: #e2e8f0;
-  --secondary-foreground: #1e293b;
-  --accent: #f0fdfa;
-  --accent-foreground: #134e4a;
-  --ring: #14b8a6;
-  --scrollbar-thumb: #cbd5e1;
-  --scrollbar-thumb-hover: #94a3b8;
-  --glass-bg-start: rgba(248, 250, 252, 0.95);
-  --glass-bg-end: rgba(241, 245, 249, 0.98);
-  --glass-border: rgba(203, 213, 225, 0.5);
-  --prose-code-bg: #f1f5f9;
-  --prose-border: #e2e8f0;
-  --overlay-bg: rgba(0, 0, 0, 0.3);
+  --muted: #edf1f7;
+  --muted-foreground: #556275;
+  --secondary: #dde3ed;
+  --secondary-foreground: #1a2436;
+  --accent: #e8f4f2;
+  --accent-foreground: #0d3d38;
+  --ring: #0f9d8e;
+  --scrollbar-thumb: #c1c9d6;
+  --scrollbar-thumb-hover: #8e99a9;
+  --glass-bg-start: rgba(248, 250, 252, 0.97);
+  --glass-bg-end: rgba(237, 241, 247, 0.98);
+  --glass-border: rgba(181, 191, 207, 0.5);
+  --prose-code-bg: #edf1f7;
+  --prose-border: #d5dce6;
+  --overlay-bg: rgba(12, 18, 34, 0.35);
 }
 
 /* Dark theme */
@@ -73,8 +73,8 @@
   --color-coral-500: #ff5245;
   --color-coral-600: #e63e30;
 
-  --color-teal-400: #2dd4bf;
-  --color-teal-500: #14b8a6;
+  --color-teal-400: #2bc4b0;
+  --color-teal-500: #0f9d8e;
 
   /* Custom fonts */
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -132,8 +132,8 @@ body { overflow: hidden; }
 /* Input focus ring */
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #14b8a6 !important;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+  border-color: #0f9d8e !important;
+  box-shadow: 0 0 0 3px rgba(15, 157, 142, 0.12);
 }
 
 /* Select dropdown styling - custom caret */
