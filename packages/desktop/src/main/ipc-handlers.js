@@ -65,7 +65,15 @@ function registerIpcHandlers() {
     // Run migration on first access
     migrateExistingRecordings(outputDir);
 
-    return loadProjects(outputDir);
+    const data = loadProjects(outputDir);
+
+    // Enrich each project with recording count
+    data.projects = data.projects.map(project => {
+      const recordings = getProjectRecordings(outputDir, project.id);
+      return { ...project, recordingCount: recordings.length };
+    });
+
+    return data;
   });
 
   ipcMain.handle('create-project', async (event, options) => {
@@ -618,6 +626,11 @@ function registerIpcHandlers() {
 
       // Save updated actions.json
       fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
+
+      // Restore original image when all edits are removed
+      if (!hasAnyEdits && fs.existsSync(originalPath)) {
+        fs.copyFileSync(originalPath, screenshotPath);
+      }
 
       // Determine source image: use original if it exists, otherwise use screenshot
       const sourcePath = fs.existsSync(originalPath) ? originalPath : screenshotPath;

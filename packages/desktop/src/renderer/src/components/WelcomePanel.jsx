@@ -45,15 +45,18 @@ export function WelcomePanel({ onStartRecording }) {
   const settings = state.settings;
 
   // Form fields
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(project?.settings?.siteUrl || '');
   const [title, setTitle] = useState('');
   const [recordActions, setRecordActions] = useState(true);
   const [useCustomSettings, setUseCustomSettings] = useState(false);
   const [showDefaults, setShowDefaults] = useState(false);
 
   // Custom settings
-  const defaultViewport = project?.viewport || settings?.viewport || '1280x720';
-  const [vWidth, vHeight] = defaultViewport.split('x').map(Number);
+  const rawViewport = project?.settings?.viewport || settings?.viewport || { width: 1680, height: 950 };
+  const [vWidth, vHeight] =
+    typeof rawViewport === 'object'
+      ? [rawViewport.width, rawViewport.height]
+      : rawViewport.split('x').map(Number);
 
   const [viewportPreset, setViewportPreset] = useState(() =>
     getPresetName(vWidth, vHeight)
@@ -61,10 +64,11 @@ export function WelcomePanel({ onStartRecording }) {
   const [customWidth, setCustomWidth] = useState(vWidth || 1280);
   const [customHeight, setCustomHeight] = useState(vHeight || 720);
   const [separator, setSeparator] = useState(
-    project?.separator ?? settings?.separator ?? '---'
+    project?.settings?.separator ?? settings?.separator ?? '---'
   );
-  const [useCSS, setUseCSS] = useState(false);
-  const [customCSS, setCustomCSS] = useState(project?.css || '');
+  const projectCSS = project?.settings?.customCSS || '';
+  const [useCSS, setUseCSS] = useState(!!projectCSS);
+  const [customCSS, setCustomCSS] = useState(projectCSS);
 
   // Validation
   const [errors, setErrors] = useState({});
@@ -254,7 +258,7 @@ export function WelcomePanel({ onStartRecording }) {
                 <div className="mt-2 rounded-md border border-slate-700/50 bg-slate-900/50 p-3 text-xs text-slate-400">
                   <div className="flex justify-between py-0.5">
                     <span>Viewport</span>
-                    <span className="text-slate-300">{defaultViewport}</span>
+                    <span className="text-slate-300">{vWidth}x{vHeight}</span>
                   </div>
                   <div className="flex justify-between py-0.5">
                     <span>Separator</span>

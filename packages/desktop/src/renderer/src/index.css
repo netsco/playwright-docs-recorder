@@ -48,6 +48,7 @@
 
 /* Base styles */
 body { overflow: hidden; }
+#root { height: 100vh; }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

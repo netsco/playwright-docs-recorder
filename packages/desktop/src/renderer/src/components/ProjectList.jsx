@@ -79,12 +79,12 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                       className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onOpenFolder(project);
+                        onOpenFolder(project.id);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.stopPropagation();
-                          onOpenFolder(project);
+                          onOpenFolder(project.id);
                         }
                       }}
                     >
@@ -97,12 +97,12 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                       className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onEditProject(project);
+                        onEditProject(project.id);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.stopPropagation();
-                          onEditProject(project);
+                          onEditProject(project.id);
                         }
                       }}
                     >
@@ -118,12 +118,18 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                   </p>
                 )}
 
-                {/* Last modified */}
-                <p className="mt-3 text-xs text-slate-500">
-                  {project.lastModified
-                    ? `Last modified ${formatDate(project.lastModified)}`
-                    : 'No recordings yet'}
-                </p>
+                {/* Meta: recording count + last modified */}
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                  <span>
+                    {project.recordingCount ?? 0} recording{project.recordingCount !== 1 ? 's' : ''}
+                  </span>
+                  {project.lastModified && (
+                    <>
+                      <span className="text-slate-700">&middot;</span>
+                      <span>{formatDate(project.lastModified)}</span>
+                    </>
+                  )}
+                </div>
               </button>
             ))}
           </div>

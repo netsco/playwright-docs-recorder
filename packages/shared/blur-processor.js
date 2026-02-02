@@ -29,13 +29,15 @@ async function applyBlurRegions(imagePath, regions, options = {}) {
   const composites = [];
 
   for (const region of regions) {
-    const { x, y, width, height, type = 'blur', color = '#000000' } = region;
+    const { x, y, width: rw, height: rh, w, h, type = 'blur', color = '#000000' } = region;
+    const width = rw || w || 0;
+    const height = rh || h || 0;
 
-    // Ensure coordinates are within bounds
-    const safeX = Math.max(0, Math.min(x, metadata.width - 1));
-    const safeY = Math.max(0, Math.min(y, metadata.height - 1));
-    const safeWidth = Math.min(width, metadata.width - safeX);
-    const safeHeight = Math.min(height, metadata.height - safeY);
+    // Ensure coordinates are integers within bounds
+    const safeX = Math.round(Math.max(0, Math.min(x, metadata.width - 1)));
+    const safeY = Math.round(Math.max(0, Math.min(y, metadata.height - 1)));
+    const safeWidth = Math.round(Math.min(width, metadata.width - safeX));
+    const safeHeight = Math.round(Math.min(height, metadata.height - safeY));
 
     if (safeWidth <= 0 || safeHeight <= 0) continue;
 

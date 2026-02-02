@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import {
   ChevronLeft,
   ChevronsLeft,
@@ -37,6 +38,7 @@ export function Sidebar({
   } = state;
 
   const [openMenuId, setOpenMenuId] = React.useState(null);
+  const [menuPos, setMenuPos] = React.useState({ top: 0, left: 0 });
   const menuRef = React.useRef(null);
 
   // Close context menu on outside click
@@ -210,60 +212,69 @@ export function Sidebar({
                   className="h-5 w-5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setOpenMenuId(openMenuId === rec.id ? null : rec.id);
+                    if (openMenuId === rec.id) {
+                      setOpenMenuId(null);
+                    } else {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setMenuPos({ top: rect.bottom + 4, left: rect.right - 160 });
+                      setOpenMenuId(rec.id);
+                    }
                   }}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
 
-                {/* Context menu dropdown */}
-                {openMenuId === rec.id && (
-                  <div
-                    ref={menuRef}
-                    className="absolute right-2 top-full z-50 w-40 rounded-md border border-slate-700 bg-slate-800 py-1 shadow-lg"
-                  >
-                    <button
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(null);
-                        onRecordingAction('open', rec.id);
-                      }}
+                {/* Context menu dropdown (portal) */}
+                {openMenuId === rec.id &&
+                  ReactDOM.createPortal(
+                    <div
+                      ref={menuRef}
+                      className="fixed z-[9999] w-40 rounded-md border border-slate-700 bg-slate-800 py-1 shadow-lg"
+                      style={{ top: menuPos.top, left: menuPos.left }}
                     >
-                      <FolderOpen className="h-3 w-3" /> Open Folder
-                    </button>
-                    <button
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(null);
-                        onRecordingAction('refetch', rec.id);
-                      }}
-                    >
-                      <RotateCw className="h-3 w-3" /> Refetch Screenshots
-                    </button>
-                    <button
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(null);
-                        onRecordingAction('move', rec.id);
-                      }}
-                    >
-                      <ArrowRightLeft className="h-3 w-3" /> Move to Project
-                    </button>
-                    <button
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-slate-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(null);
-                        onRecordingAction('delete', rec.id);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" /> Delete
-                    </button>
-                  </div>
-                )}
+                      <button
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onRecordingAction('open', rec.id);
+                        }}
+                      >
+                        <FolderOpen className="h-3 w-3" /> Open Folder
+                      </button>
+                      <button
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onRecordingAction('refetch', rec.id);
+                        }}
+                      >
+                        <RotateCw className="h-3 w-3" /> Refetch Screenshots
+                      </button>
+                      <button
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onRecordingAction('move', rec.id);
+                        }}
+                      >
+                        <ArrowRightLeft className="h-3 w-3" /> Move to Project
+                      </button>
+                      <button
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onRecordingAction('delete', rec.id);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" /> Delete
+                      </button>
+                    </div>,
+                    document.body
+                  )}
               </div>
             ))
           )}

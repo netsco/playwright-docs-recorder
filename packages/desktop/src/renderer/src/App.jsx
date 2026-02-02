@@ -914,10 +914,11 @@ function AppContent() {
           {state.currentView === 'editor' && (
             <EditorPanel
               onBack={() => dispatch({ type: 'SET_VIEW', payload: 'welcome' })}
-              onOpenScreenshotEditor={(filename) =>
+              onOpenScreenshotEditor={(recordingId, filename) =>
                 setScreenshotEditorConfig({
-                  recordingId: state.activeHistoryId,
+                  recordingId,
                   filename,
+                  recordingDir: state.editorRecordingDir,
                 })
               }
             />
@@ -1000,12 +1001,11 @@ function AppContent() {
           open={!!screenshotEditorConfig}
           recordingId={screenshotEditorConfig.recordingId}
           filename={screenshotEditorConfig.filename}
+          recordingDir={screenshotEditorConfig.recordingDir}
           onClose={() => setScreenshotEditorConfig(null)}
           onSave={async () => {
             setScreenshotEditorConfig(null);
-            if (state.activeHistoryId) {
-              await openEditor(state.activeHistoryId);
-            }
+            dispatch({ type: 'BUMP_EDITOR_IMAGE_REVISION' });
           }}
           onOpenTextInput={(config) => setTextInputConfig(config)}
         />
@@ -1015,8 +1015,8 @@ function AppContent() {
         <TextInputModal
           open={!!textInputConfig}
           onOpenChange={(open) => !open && setTextInputConfig(null)}
-          onSave={(text, fontSize) => {
-            textInputConfig?.onSave(text, fontSize);
+          onSave={(result) => {
+            textInputConfig?.onSave(result);
             setTextInputConfig(null);
           }}
         />

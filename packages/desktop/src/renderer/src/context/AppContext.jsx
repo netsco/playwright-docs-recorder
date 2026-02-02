@@ -24,6 +24,7 @@ const initialState = {
   editorContent: '',
   editorOriginalContent: '',
   editorRecordingDir: '',
+  editorImageRevision: 0,
 
   // Recordings list (for sidebar)
   recordings: [],
@@ -128,6 +129,9 @@ function appReducer(state, action) {
         editorOriginalContent: action.payload.content,
         editorRecordingDir: action.payload.dir,
       };
+
+    case 'BUMP_EDITOR_IMAGE_REVISION':
+      return { ...state, editorImageRevision: state.editorImageRevision + 1 };
 
     // Log and screenshots
     case 'ADD_LOG_ENTRY':

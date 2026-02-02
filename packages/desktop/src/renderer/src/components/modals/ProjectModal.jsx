@@ -57,9 +57,9 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(PROJECT_COLORS[0].value);
   const [siteUrl, setSiteUrl] = useState('');
-  const [viewportPreset, setViewportPreset] = useState('1280x620');
-  const [customWidth, setCustomWidth] = useState('1280');
-  const [customHeight, setCustomHeight] = useState('720');
+  const [viewportPreset, setViewportPreset] = useState('1680x950');
+  const [customWidth, setCustomWidth] = useState('1680');
+  const [customHeight, setCustomHeight] = useState('950');
   const [injectCSS, setInjectCSS] = useState(false);
   const [customCSS, setCustomCSS] = useState('');
 
@@ -70,18 +70,22 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
         setFolder(editingProject.folder || '');
         setDescription(editingProject.description || '');
         setColor(editingProject.color || PROJECT_COLORS[0].value);
-        setSiteUrl(editingProject.defaultSettings?.siteUrl || '');
-        const vp = editingProject.defaultSettings?.viewport || '1280x620';
-        const matchedPreset = VIEWPORT_PRESETS.find((p) => p.value === vp);
+        const s = editingProject.settings || {};
+        setSiteUrl(s.siteUrl || '');
+        const vp = s.viewport;
+        const vpStr = vp && typeof vp === 'object'
+          ? `${vp.width}x${vp.height}`
+          : (vp || '1680x950');
+        const matchedPreset = VIEWPORT_PRESETS.find((p) => p.value === vpStr);
         if (matchedPreset && matchedPreset.value !== 'custom') {
-          setViewportPreset(vp);
+          setViewportPreset(vpStr);
         } else {
           setViewportPreset('custom');
-          const [w, h] = vp.split('x');
-          setCustomWidth(w || '1280');
-          setCustomHeight(h || '720');
+          const [w, h] = vpStr.split('x');
+          setCustomWidth(w || '1680');
+          setCustomHeight(h || '950');
         }
-        const css = editingProject.defaultSettings?.customCSS || '';
+        const css = s.customCSS || '';
         setInjectCSS(!!css);
         setCustomCSS(css);
       } else {
@@ -90,9 +94,9 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
         setDescription('');
         setColor(PROJECT_COLORS[0].value);
         setSiteUrl('');
-        setViewportPreset('1280x620');
-        setCustomWidth('1280');
-        setCustomHeight('720');
+        setViewportPreset('1680x950');
+        setCustomWidth('1680');
+        setCustomHeight('950');
         setInjectCSS(false);
         setCustomCSS('');
       }
@@ -119,10 +123,9 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
   const handleSubmit = () => {
     if (!name.trim()) return;
 
-    const viewport =
-      viewportPreset === 'custom'
-        ? `${customWidth}x${customHeight}`
-        : viewportPreset;
+    const [vw, vh] = viewportPreset === 'custom'
+      ? [Number(customWidth), Number(customHeight)]
+      : viewportPreset.split('x').map(Number);
 
     onSave({
       id: editingProjectId || undefined,
@@ -130,9 +133,10 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
       folder: folder.trim(),
       description: description.trim(),
       color,
-      defaultSettings: {
+      settings: {
         siteUrl: siteUrl.trim(),
-        viewport,
+        viewport: { width: vw, height: vh },
+        injectCSS: !!injectCSS,
         customCSS: injectCSS ? customCSS : '',
       },
     });

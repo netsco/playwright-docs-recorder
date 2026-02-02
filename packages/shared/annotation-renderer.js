@@ -58,7 +58,7 @@ function createAnnotationSVG(annotations, width, height) {
 
   for (const anno of annotations) {
     const color = anno.color || '#ff0000';
-    const strokeWidth = anno.strokeWidth || 3;
+    const strokeWidth = anno.strokeWidth || anno.width || 3;
 
     switch (anno.type) {
       case 'arrow':
@@ -100,11 +100,24 @@ function renderArrow(anno, color, strokeWidth) {
  * Render circle annotation
  */
 function renderCircle(anno, color, strokeWidth) {
-  const { cx, cy, radius } = anno;
+  let cx, cy, rx, ry;
+  if (anno.cx !== undefined) {
+    cx = anno.cx;
+    cy = anno.cy;
+    rx = ry = anno.radius || 20;
+  } else {
+    // Editor format: { x, y, w, h } (top-left corner + dimensions)
+    const w = anno.w || anno.width || 0;
+    const h = anno.h || anno.height || 0;
+    cx = Math.round(anno.x + w / 2);
+    cy = Math.round(anno.y + h / 2);
+    rx = Math.round(Math.abs(w) / 2);
+    ry = Math.round(Math.abs(h) / 2);
+  }
   const fill = anno.fill || 'none';
   const fillOpacity = anno.fillOpacity || 0.2;
 
-  return `<circle cx="${cx}" cy="${cy}" r="${radius}"
+  return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"
     stroke="${color}" stroke-width="${strokeWidth}"
     fill="${fill === 'none' ? 'none' : color}" fill-opacity="${fill === 'none' ? 0 : fillOpacity}" />`;
 }
@@ -113,7 +126,12 @@ function renderCircle(anno, color, strokeWidth) {
  * Render rectangle annotation
  */
 function renderRectangle(anno, color, strokeWidth) {
-  const { x, y, width, height } = anno;
+  const rawW = anno.width || anno.w || 0;
+  const rawH = anno.height || anno.h || 0;
+  const x = Math.round(rawW < 0 ? anno.x + rawW : anno.x);
+  const y = Math.round(rawH < 0 ? anno.y + rawH : anno.y);
+  const width = Math.round(Math.abs(rawW));
+  const height = Math.round(Math.abs(rawH));
   const fill = anno.fill || 'none';
   const fillOpacity = anno.fillOpacity || 0.2;
   const rx = anno.borderRadius || 0;
@@ -128,9 +146,10 @@ function renderRectangle(anno, color, strokeWidth) {
  */
 function renderText(anno, color) {
   const { x, y, text } = anno;
-  const fontSize = anno.fontSize || 16;
+  // Editor sends `width` as a stroke-width scale factor; convert to font size
+  const fontSize = anno.fontSize || (anno.width ? Math.max(14, anno.width * 6) : 16);
   const fontFamily = anno.fontFamily || 'Arial, sans-serif';
-  const fontWeight = anno.fontWeight || 'normal';
+  const fontWeight = anno.fontWeight || 'bold';
 
   // Add text shadow/outline for readability
   return `
@@ -178,7 +197,10 @@ function renderCallout(anno, color) {
  * Render highlight (semi-transparent rectangle)
  */
 function renderHighlight(anno, color) {
-  const { x, y, width, height } = anno;
+  const x = Math.round(anno.x);
+  const y = Math.round(anno.y);
+  const width = Math.round(anno.width || anno.w || 0);
+  const height = Math.round(anno.height || anno.h || 0);
   const opacity = anno.opacity || 0.3;
 
   return `<rect x="${x}" y="${y}" width="${width}" height="${height}"

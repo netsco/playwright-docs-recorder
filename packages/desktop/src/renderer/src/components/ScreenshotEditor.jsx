@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Eye, Square, Grid3X3, ArrowRight, Circle, RectangleHorizontal, Type, Hash, Undo, Eraser, RotateCcw } from 'lucide-react';
+import { Eye, Square, Grid3X3, ArrowRight, Circle, RectangleHorizontal, Type, Hash, Undo, Eraser, RotateCcw, ZoomIn, MousePointer2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
@@ -19,11 +19,7 @@ const ANNOTATE_TOOLS = [
   { id: 'callout', label: 'Callout', icon: Hash, hint: 'Click to place a numbered callout badge' },
 ];
 
-const STROKE_WIDTHS = [
-  { label: 'Thin', value: 2 },
-  { label: 'Medium', value: 3 },
-  { label: 'Thick', value: 5 },
-];
+const STROKE_WIDTHS = [1, 2, 3, 4, 6];
 
 function isRegionTool(tool) {
   return tool === 'blur' || tool === 'redact' || tool === 'pixelate';
@@ -33,7 +29,97 @@ function isClickTool(tool) {
   return tool === 'text' || tool === 'callout';
 }
 
-export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave, onOpenTextInput }) {
+// Hit-testing helpers for the select tool
+
+function pointInRect(px, py, x, y, w, h) {
+  const minX = Math.min(x, x + w);
+  const maxX = Math.max(x, x + w);
+  const minY = Math.min(y, y + h);
+  const maxY = Math.max(y, y + h);
+  return px >= minX && px <= maxX && py >= minY && py <= maxY;
+}
+
+function distanceToLineSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  return Math.hypot(px - projX, py - projY);
+}
+
+function pointNearEllipsePerimeter(px, py, cx, cy, rx, ry, threshold) {
+  if (rx === 0 || ry === 0) return false;
+  const nx = (px - cx) / rx;
+  const ny = (py - cy) / ry;
+  const d = Math.sqrt(nx * nx + ny * ny);
+  // Normalized distance from perimeter; scale threshold by average radius
+  return Math.abs(d - 1) * ((rx + ry) / 2) < threshold;
+}
+
+function pointNearRectPerimeter(px, py, x, y, w, h, threshold) {
+  const minX = Math.min(x, x + w);
+  const maxX = Math.max(x, x + w);
+  const minY = Math.min(y, y + h);
+  const maxY = Math.max(y, y + h);
+  const inside = px >= minX - threshold && px <= maxX + threshold &&
+                 py >= minY - threshold && py <= maxY + threshold;
+  if (!inside) return false;
+  const deepInside = px >= minX + threshold && px <= maxX - threshold &&
+                     py >= minY + threshold && py <= maxY - threshold;
+  return !deepInside;
+}
+
+function hitTestItem(px, py, item, collection) {
+  const threshold = 8;
+  if (collection === 'regions') {
+    return pointInRect(px, py, item.x, item.y, item.w, item.h);
+  }
+  switch (item.type) {
+    case 'arrow':
+      return distanceToLineSegment(px, py, item.x1, item.y1, item.x2, item.y2) < threshold;
+    case 'circle': {
+      const cx = item.x + item.w / 2;
+      const cy = item.y + item.h / 2;
+      const rx = Math.abs(item.w) / 2;
+      const ry = Math.abs(item.h) / 2;
+      return pointNearEllipsePerimeter(px, py, cx, cy, rx, ry, threshold);
+    }
+    case 'rectangle':
+      return pointNearRectPerimeter(px, py, item.x, item.y, item.w, item.h, threshold);
+    case 'text': {
+      const fontSize = item.fontSize || Math.max(14, (item.width || 3) * 6);
+      const estW = fontSize * (item.text?.length || 1) * 0.6;
+      const estH = fontSize * 1.2;
+      return pointInRect(px, py, item.x, item.y, estW, estH);
+    }
+    case 'callout':
+      return Math.hypot(px - item.x, py - item.y) < 14;
+    default:
+      return false;
+  }
+}
+
+function findItemAtPoint(px, py, regions, annotations) {
+  // Check annotations in reverse draw order (top-most first)
+  for (let i = annotations.length - 1; i >= 0; i--) {
+    if (hitTestItem(px, py, annotations[i], 'annotations')) {
+      return { collection: 'annotations', index: i };
+    }
+  }
+  // Then regions in reverse draw order
+  for (let i = regions.length - 1; i >= 0; i--) {
+    if (hitTestItem(px, py, regions[i], 'regions')) {
+      return { collection: 'regions', index: i };
+    }
+  }
+  return null;
+}
+
+export function ScreenshotEditor({ open, recordingId, filename, recordingDir, onClose, onSave, onOpenTextInput }) {
   const { state, dispatch } = useApp();
   const electronAPI = useElectronAPI();
 
@@ -49,75 +135,134 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
   const [startY, setStartY] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [currentY, setCurrentY] = useState(0);
+  const ctrlHeldRef = useRef(false);
   const [strokeColor, setStrokeColor] = useState('#f87171');
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [calloutCounter, setCalloutCounter] = useState(1);
   const [scale, setScale] = useState(1);
+  const [zoomMode, setZoomMode] = useState('fit'); // 'fit' | '100' | '50' | '150' | '200'
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [undoStack, setUndoStack] = useState([]);
+  const [selection, setSelection] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Track Ctrl key for aspect-ratio lock (circle → perfect circle, rectangle → square)
+  // Using a counter bump to trigger canvas redraw when Ctrl state changes during a drag
+  const [ctrlRedraw, setCtrlRedraw] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e) => {
+      if (e.key === 'Control') {
+        ctrlHeldRef.current = true;
+        setCtrlRedraw((n) => n + 1);
+      }
+    };
+    const up = (e) => {
+      if (e.key === 'Control') {
+        ctrlHeldRef.current = false;
+        setCtrlRedraw((n) => n + 1);
+      }
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      ctrlHeldRef.current = false;
+    };
+  }, [open]);
+
+  // Constrain w/h to 1:1 aspect ratio (used when Ctrl is held for circle/rectangle)
+  const constrainAspect = useCallback((w, h) => {
+    const size = Math.max(Math.abs(w), Math.abs(h));
+    return {
+      w: Math.sign(w) * size || size,
+      h: Math.sign(h) * size || size,
+    };
+  }, []);
 
   // Load the image when the editor opens
   useEffect(() => {
-    if (!open || !electronAPI || !recordingId || !filename) return;
+    if (!open || !recordingDir || !filename) return;
 
     setRegions([]);
     setAnnotations([]);
     setUndoStack([]);
     setCalloutCounter(1);
     setCurrentTool('blur');
+    setSelection(null);
     setImageLoaded(false);
 
-    const loadImage = async () => {
-      try {
-        const imgPath = await electronAPI.getScreenshotPath(recordingId, filename);
-        const img = new Image();
-        img.onload = () => {
-          imageRef.current = img;
-          setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-          setImageLoaded(true);
-        };
-        img.onerror = () => {
-          console.error('Failed to load screenshot image:', imgPath);
-        };
-        img.src = `file://${imgPath}?_cb=${Date.now()}`;
-      } catch (err) {
-        console.error('Failed to get screenshot path:', err);
-      }
+    const originalPath = `${recordingDir}/screenshots-original/${filename}`.replace(/\\/g, '/');
+    const editedPath = `${recordingDir}/screenshots/${filename}`.replace(/\\/g, '/');
+    const handleImageLoaded = (loadedImg) => {
+      imageRef.current = loadedImg;
+      setImageDimensions({ width: loadedImg.naturalWidth, height: loadedImg.naturalHeight });
+      setImageLoaded(true);
     };
+    const img = new Image();
+    img.onload = () => handleImageLoaded(img);
+    img.onerror = () => {
+      // Original doesn't exist — fall back to the edited/main copy
+      const fallback = new Image();
+      fallback.onload = () => handleImageLoaded(fallback);
+      fallback.onerror = () => console.error('Failed to load screenshot image:', editedPath);
+      fallback.src = `file://${editedPath}?_cb=${Date.now()}`;
+    };
+    img.src = `file://${originalPath}?_cb=${Date.now()}`;
 
-    loadImage();
-  }, [open, electronAPI, recordingId, filename]);
+    // Load existing edits from IPC if available
+    if (electronAPI && recordingId) {
+      electronAPI.getScreenshotPath(recordingId, filename, state.currentProjectId).then((result) => {
+        if (result?.success) {
+          if (result.blurRegions?.length) setRegions(result.blurRegions);
+          if (result.annotations?.length) setAnnotations(result.annotations);
+        }
+      }).catch(() => {});
+    }
+  }, [open, recordingDir, filename, recordingId, electronAPI, state.currentProjectId]);
 
-  // Calculate scale and resize canvas when image loads or container resizes
+  // Calculate scale and resize canvas when image loads, container resizes, or zoom changes
   useEffect(() => {
     if (!imageLoaded || !containerRef.current || !canvasRef.current) return;
 
     const fitCanvas = () => {
       const container = containerRef.current;
-      if (!container) return;
+      const canvas = canvasRef.current;
+      if (!container || !canvas) return;
 
       const { width: cw, height: ch } = container.getBoundingClientRect();
       const { width: iw, height: ih } = imageDimensions;
 
-      if (iw === 0 || ih === 0) return;
+      if (iw === 0 || ih === 0 || cw === 0 || ch === 0) return;
 
-      const scaleX = cw / iw;
-      const scaleY = ch / ih;
-      const newScale = Math.min(scaleX, scaleY, 1);
+      let newScale;
+      if (zoomMode === 'fit') {
+        const scaleX = cw / iw;
+        const scaleY = ch / ih;
+        newScale = Math.min(scaleX, scaleY, 1);
+      } else {
+        newScale = Number(zoomMode) / 100;
+      }
+
+      const newW = Math.round(iw * newScale);
+      const newH = Math.round(ih * newScale);
+
+      if (canvas.width !== newW || canvas.height !== newH) {
+        canvas.width = newW;
+        canvas.height = newH;
+      }
 
       setScale(newScale);
-
-      const canvas = canvasRef.current;
-      canvas.width = iw * newScale;
-      canvas.height = ih * newScale;
     };
 
     fitCanvas();
     const observer = new ResizeObserver(fitCanvas);
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [imageLoaded, imageDimensions]);
+  }, [imageLoaded, imageDimensions, zoomMode]);
 
   // Convert mouse coordinates to image coordinates
   const toImageCoords = useCallback(
@@ -144,6 +289,27 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
       },
     ]);
   }, [regions, annotations, calloutCounter]);
+
+  // Delete/Backspace to remove selected item
+  useEffect(() => {
+    if (!open || !selection) return;
+    const handler = (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Don't intercept if typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        pushUndo();
+        if (selection.collection === 'regions') {
+          setRegions((prev) => prev.filter((_, i) => i !== selection.index));
+        } else {
+          setAnnotations((prev) => prev.filter((_, i) => i !== selection.index));
+        }
+        setSelection(null);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, selection, pushUndo]);
 
   // Drawing helpers
 
@@ -250,9 +416,8 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
   );
 
   const drawTextShape = useCallback(
-    (ctx, x, y, text, color, size) => {
+    (ctx, x, y, text, color, fontSize) => {
       ctx.save();
-      const fontSize = Math.max(14, size * 6);
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textBaseline = 'top';
       // White outline for readability
@@ -303,7 +468,7 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
           drawRectOutline(ctx, ann.x, ann.y, ann.w, ann.h, ann.color, ann.width);
           break;
         case 'text':
-          drawTextShape(ctx, ann.x, ann.y, ann.text, ann.color, ann.width);
+          drawTextShape(ctx, ann.x, ann.y, ann.text, ann.color, ann.fontSize || Math.max(14, (ann.width || 3) * 6));
           break;
         case 'callout':
           drawCalloutShape(ctx, ann.x, ann.y, ann.number, ann.color);
@@ -339,10 +504,68 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
       drawAnnotation(ctx, ann);
     }
 
+    // Draw selection indicator
+    if (selection) {
+      const item = selection.collection === 'regions'
+        ? regions[selection.index]
+        : annotations[selection.index];
+      if (item) {
+        ctx.save();
+        ctx.setLineDash([6, 3]);
+        ctx.strokeStyle = '#38bdf8'; // sky-400
+        ctx.lineWidth = 1.5 / scale;
+        let bx, by, bw, bh;
+        if (selection.collection === 'regions') {
+          bx = item.x; by = item.y; bw = item.w; bh = item.h;
+        } else {
+          switch (item.type) {
+            case 'arrow': {
+              bx = Math.min(item.x1, item.x2) - 4;
+              by = Math.min(item.y1, item.y2) - 4;
+              bw = Math.abs(item.x2 - item.x1) + 8;
+              bh = Math.abs(item.y2 - item.y1) + 8;
+              break;
+            }
+            case 'circle':
+            case 'rectangle': {
+              bx = Math.min(item.x, item.x + item.w);
+              by = Math.min(item.y, item.y + item.h);
+              bw = Math.abs(item.w);
+              bh = Math.abs(item.h);
+              break;
+            }
+            case 'text': {
+              const fontSize = item.fontSize || Math.max(14, (item.width || 3) * 6);
+              bx = item.x - 2;
+              by = item.y - 2;
+              bw = fontSize * (item.text?.length || 1) * 0.6 + 4;
+              bh = fontSize * 1.2 + 4;
+              break;
+            }
+            case 'callout': {
+              bx = item.x - 16;
+              by = item.y - 16;
+              bw = 32;
+              bh = 32;
+              break;
+            }
+            default:
+              bx = 0; by = 0; bw = 0; bh = 0;
+          }
+        }
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.restore();
+      }
+    }
+
     // Draw current selection preview
     if (isDrawing) {
-      const w = currentX - startX;
-      const h = currentY - startY;
+      let w = currentX - startX;
+      let h = currentY - startY;
+
+      // Ctrl held: lock aspect ratio to 1:1 for circle/rectangle
+      const lockAspect = ctrlHeldRef.current && (currentTool === 'circle' || currentTool === 'rectangle');
+      if (lockAspect) ({ w, h } = constrainAspect(w, h));
 
       if (isRegionTool(currentTool)) {
         drawRegionPreview(ctx, currentTool, startX, startY, w, h);
@@ -381,6 +604,9 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
     drawArrowShape,
     drawCircleShape,
     drawRectOutline,
+    constrainAspect,
+    ctrlRedraw,
+    selection,
   ]);
 
   // Redraw whenever state changes
@@ -396,14 +622,51 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
       if (e.button !== 0) return;
       const { x, y } = toImageCoords(e);
 
+      if (currentTool === 'select') {
+        const hit = findItemAtPoint(x, y, regions, annotations);
+        if (hit) {
+          // If clicking the already-selected item, start a drag
+          if (selection && selection.collection === hit.collection && selection.index === hit.index) {
+            pushUndo();
+            setIsDragging(true);
+            setDragStart({ x, y });
+          } else {
+            // Select new item (next click will drag)
+            setSelection(hit);
+            // Sync color/width pickers to the selected item's properties
+            const item = hit.collection === 'regions' ? regions[hit.index] : annotations[hit.index];
+            if (item.color) setStrokeColor(item.color);
+            if (item.width) setStrokeWidth(item.width);
+          }
+        } else {
+          setSelection(null);
+        }
+        return;
+      }
+
       if (isClickTool(currentTool)) {
         pushUndo();
         if (currentTool === 'text') {
           // Open text input via parent callback, then add annotation
           if (onOpenTextInput) {
-            dispatch({ type: 'OPEN_TEXT_INPUT_MODAL' });
-            // Store position for when text input completes
             textPosRef.current = { x, y };
+            onOpenTextInput({
+              onSave: ({ text, fontSize }) => {
+                if (text && textPosRef.current) {
+                  setAnnotations((prev) => [
+                    ...prev,
+                    {
+                      type: 'text',
+                      x: textPosRef.current.x,
+                      y: textPosRef.current.y,
+                      text,
+                      fontSize,
+                      color: strokeColor,
+                    },
+                  ]);
+                }
+              },
+            });
           }
         } else if (currentTool === 'callout') {
           setAnnotations((prev) => [
@@ -421,27 +684,64 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
       setCurrentX(x);
       setCurrentY(y);
     },
-    [currentTool, toImageCoords, pushUndo, strokeColor, calloutCounter, onOpenTextInput, dispatch]
+    [currentTool, toImageCoords, pushUndo, strokeColor, calloutCounter, onOpenTextInput, dispatch, regions, annotations, selection]
   );
 
   const handleMouseMove = useCallback(
     (e) => {
+      if (isDragging && selection) {
+        const { x, y } = toImageCoords(e);
+        const dx = x - dragStart.x;
+        const dy = y - dragStart.y;
+        setDragStart({ x, y });
+
+        if (selection.collection === 'regions') {
+          setRegions((prev) => prev.map((r, i) =>
+            i === selection.index ? { ...r, x: r.x + dx, y: r.y + dy } : r
+          ));
+        } else {
+          setAnnotations((prev) => prev.map((a, i) => {
+            if (i !== selection.index) return a;
+            switch (a.type) {
+              case 'arrow':
+                return { ...a, x1: a.x1 + dx, y1: a.y1 + dy, x2: a.x2 + dx, y2: a.y2 + dy };
+              case 'circle':
+              case 'rectangle':
+              case 'text':
+              case 'callout':
+                return { ...a, x: a.x + dx, y: a.y + dy };
+              default:
+                return a;
+            }
+          }));
+        }
+        return;
+      }
+
       if (!isDrawing) return;
       const { x, y } = toImageCoords(e);
       setCurrentX(x);
       setCurrentY(y);
     },
-    [isDrawing, toImageCoords]
+    [isDrawing, isDragging, selection, dragStart, toImageCoords]
   );
 
   const handleMouseUp = useCallback(
     (e) => {
+      if (isDragging) {
+        setIsDragging(false);
+        return;
+      }
       if (!isDrawing) return;
       setIsDrawing(false);
 
       const { x, y } = toImageCoords(e);
-      const w = x - startX;
-      const h = y - startY;
+      let w = x - startX;
+      let h = y - startY;
+
+      // Ctrl held: lock aspect ratio to 1:1 for circle/rectangle
+      const lockAspect = e.ctrlKey && (currentTool === 'circle' || currentTool === 'rectangle');
+      if (lockAspect) ({ w, h } = constrainAspect(w, h));
 
       // Minimum size check for drag tools
       if (Math.abs(w) < 3 && Math.abs(h) < 3) return;
@@ -472,63 +772,11 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
         ]);
       }
     },
-    [isDrawing, toImageCoords, startX, startY, currentTool, strokeColor, strokeWidth, pushUndo]
+    [isDrawing, isDragging, toImageCoords, startX, startY, currentTool, strokeColor, strokeWidth, pushUndo, constrainAspect]
   );
 
   // Text position ref for async text input
   const textPosRef = useRef({ x: 0, y: 0 });
-
-  // Listen for text input modal result
-  useEffect(() => {
-    if (!electronAPI) return;
-    const handler = (text) => {
-      if (text && textPosRef.current) {
-        setAnnotations((prev) => [
-          ...prev,
-          {
-            type: 'text',
-            x: textPosRef.current.x,
-            y: textPosRef.current.y,
-            text,
-            color: strokeColor,
-            width: strokeWidth,
-          },
-        ]);
-      }
-      dispatch({ type: 'CLOSE_TEXT_INPUT_MODAL' });
-    };
-
-    if (electronAPI.onTextInputResult) {
-      electronAPI.onTextInputResult(handler);
-    }
-
-    return () => {
-      if (electronAPI.offTextInputResult) {
-        electronAPI.offTextInputResult(handler);
-      }
-    };
-  }, [electronAPI, strokeColor, strokeWidth, dispatch]);
-
-  // Add text annotation externally (called by parent when text modal submits)
-  const addTextAnnotation = useCallback(
-    (text) => {
-      if (text && textPosRef.current) {
-        pushUndo();
-        setAnnotations((prev) => [
-          ...prev,
-          {
-            type: 'text',
-            x: textPosRef.current.x,
-            y: textPosRef.current.y,
-            text,
-            color: strokeColor,
-            width: strokeWidth,
-          },
-        ]);
-      }
-    },
-    [pushUndo, strokeColor, strokeWidth]
-  );
 
   // Undo
   const handleUndo = useCallback(() => {
@@ -538,6 +786,7 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
     setRegions(prev.regions);
     setAnnotations(prev.annotations);
     setCalloutCounter(prev.calloutCounter);
+    setSelection(null);
   }, [undoStack]);
 
   // Clear all
@@ -547,44 +796,57 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
     setRegions([]);
     setAnnotations([]);
     setCalloutCounter(1);
+    setSelection(null);
   }, [regions, annotations, pushUndo]);
 
   // Reset to original
   const handleReset = useCallback(async () => {
     if (!electronAPI || !recordingId || !filename) return;
     try {
-      await electronAPI.resetScreenshotToOriginal(recordingId, filename);
-      // Reload the image
-      const imgPath = await electronAPI.getScreenshotPath(recordingId, filename);
-      const img = new Image();
-      img.onload = () => {
-        imageRef.current = img;
+      await electronAPI.resetScreenshotToOriginal({ recordingId, filename, projectId: state.currentProjectId });
+      // Reload the image — try original first, fall back to screenshots/
+      const resetOriginalPath = `${recordingDir}/screenshots-original/${filename}`.replace(/\\/g, '/');
+      const resetEditedPath = `${recordingDir}/screenshots/${filename}`.replace(/\\/g, '/');
+      const handleResetLoaded = (loadedImg) => {
+        imageRef.current = loadedImg;
         setRegions([]);
         setAnnotations([]);
         setUndoStack([]);
         setCalloutCounter(1);
+        setSelection(null);
         setImageLoaded(true);
       };
-      img.src = `file://${imgPath}?_cb=${Date.now()}`;
+      const img = new Image();
+      img.onload = () => handleResetLoaded(img);
+      img.onerror = () => {
+        const fallback = new Image();
+        fallback.onload = () => handleResetLoaded(fallback);
+        fallback.onerror = () => console.error('Failed to load screenshot image:', resetEditedPath);
+        fallback.src = `file://${resetEditedPath}?_cb=${Date.now()}`;
+      };
+      img.src = `file://${resetOriginalPath}?_cb=${Date.now()}`;
     } catch (err) {
       console.error('Failed to reset screenshot:', err);
     }
-  }, [electronAPI, recordingId, filename]);
+  }, [electronAPI, recordingId, filename, recordingDir, state.currentProjectId]);
 
   // Save edits
   const handleSave = useCallback(async () => {
     if (!electronAPI || !recordingId || !filename) return;
     try {
-      await electronAPI.saveScreenshotEdits(recordingId, filename, {
-        regions,
+      await electronAPI.saveScreenshotEdits({
+        recordingId,
+        filename,
+        blurRegions: regions,
         annotations,
+        projectId: state.currentProjectId,
       });
       if (onSave) onSave();
       if (onClose) onClose();
     } catch (err) {
       console.error('Failed to save screenshot edits:', err);
     }
-  }, [electronAPI, recordingId, filename, regions, annotations, onSave, onClose]);
+  }, [electronAPI, recordingId, filename, regions, annotations, onSave, onClose, state.currentProjectId]);
 
   // Get current tool hint
   const currentToolConfig =
@@ -597,90 +859,183 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
       {/* Toolbar */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Select tool */}
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Select
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => { setCurrentTool('select'); setSelection(null); }}
+              className={cn(
+                'h-7 w-7',
+                currentTool === 'select'
+                  ? 'bg-teal-600 text-white hover:bg-teal-700'
+                  : 'text-slate-400 hover:text-slate-200'
+              )}
+              title="Select (click to select and edit items)"
+            >
+              <MousePointer2 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="h-8 w-px bg-slate-700" />
+
           {/* Blur tools group */}
-          <div className="flex items-center gap-1">
-            <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               Blur
             </span>
-            {BLUR_TOOLS.map((tool) => (
-              <Button
-                key={tool.id}
-                variant={currentTool === tool.id ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setCurrentTool(tool.id)}
-                className={cn(
-                  'h-8 gap-1.5 px-2.5 text-xs',
-                  currentTool === tool.id
-                    ? 'bg-teal-600 text-white hover:bg-teal-700'
-                    : 'text-slate-400 hover:text-slate-200'
-                )}
-                title={tool.hint}
-              >
-                <tool.icon className="h-3.5 w-3.5" />
-                {tool.label}
-              </Button>
-            ))}
+            <div className="flex items-center gap-0.5">
+              {BLUR_TOOLS.map((tool) => (
+                <Button
+                  key={tool.id}
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (selection && selection.collection === 'regions') {
+                      // Change selected region's type instead of switching tools
+                      const item = regions[selection.index];
+                      if (item && item.type !== tool.id) {
+                        pushUndo();
+                        setRegions((prev) => prev.map((r, i) =>
+                          i === selection.index ? { ...r, type: tool.id } : r
+                        ));
+                      }
+                      return;
+                    }
+                    setCurrentTool(tool.id);
+                    setSelection(null);
+                  }}
+                  className={cn(
+                    'h-7 w-7',
+                    (currentTool === tool.id && !selection) ||
+                    (selection?.collection === 'regions' && regions[selection.index]?.type === tool.id)
+                      ? 'bg-teal-600 text-white hover:bg-teal-700'
+                      : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  title={tool.label}
+                >
+                  <tool.icon className="h-3.5 w-3.5" />
+                </Button>
+              ))}
+            </div>
           </div>
 
-          <div className="h-6 w-px bg-slate-700" />
+          <div className="h-8 w-px bg-slate-700" />
 
           {/* Annotate tools group */}
-          <div className="flex items-center gap-1">
-            <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               Annotate
             </span>
-            {ANNOTATE_TOOLS.map((tool) => (
-              <Button
-                key={tool.id}
-                variant={currentTool === tool.id ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setCurrentTool(tool.id)}
-                className={cn(
-                  'h-8 gap-1.5 px-2.5 text-xs',
-                  currentTool === tool.id
-                    ? 'bg-teal-600 text-white hover:bg-teal-700'
-                    : 'text-slate-400 hover:text-slate-200'
-                )}
-                title={tool.hint}
-              >
-                <tool.icon className="h-3.5 w-3.5" />
-                {tool.label}
-              </Button>
-            ))}
+            <div className="flex items-center gap-0.5">
+              {ANNOTATE_TOOLS.map((tool) => (
+                <Button
+                  key={tool.id}
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => { setCurrentTool(tool.id); setSelection(null); }}
+                  className={cn(
+                    'h-7 w-7',
+                    currentTool === tool.id && !selection
+                      ? 'bg-teal-600 text-white hover:bg-teal-700'
+                      : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  title={tool.label}
+                >
+                  <tool.icon className="h-3.5 w-3.5" />
+                </Button>
+              ))}
+            </div>
           </div>
 
-          <div className="h-6 w-px bg-slate-700" />
+          <div className="h-8 w-px bg-slate-700" />
 
-          {/* Color + stroke */}
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                Color
-              </span>
-              <input
-                type="color"
-                value={strokeColor}
-                onChange={(e) => setStrokeColor(e.target.value)}
-                className="h-7 w-7 cursor-pointer rounded border border-slate-600 bg-transparent p-0.5"
-              />
-            </label>
-            <label className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                Stroke
-              </span>
-              <select
-                value={strokeWidth}
-                onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                className="h-7 rounded border border-slate-600 bg-slate-800 px-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              >
-                {STROKE_WIDTHS.map((sw) => (
-                  <option key={sw.value} value={sw.value}>
-                    {sw.label} ({sw.value})
-                  </option>
-                ))}
-              </select>
-            </label>
+          {/* Color */}
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Color
+            </span>
+            <input
+              type="color"
+              value={strokeColor}
+              onChange={(e) => {
+                const newColor = e.target.value;
+                setStrokeColor(newColor);
+                if (selection && selection.collection === 'annotations') {
+                  pushUndo();
+                  setAnnotations((prev) => prev.map((a, i) =>
+                    i === selection.index ? { ...a, color: newColor } : a
+                  ));
+                }
+              }}
+              className="h-7 w-7 cursor-pointer rounded border border-slate-600 bg-transparent p-0.5"
+            />
+          </div>
+
+          <div className="h-8 w-px bg-slate-700" />
+
+          {/* Stroke width */}
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Width
+            </span>
+            <div className="flex items-center gap-0.5">
+              {STROKE_WIDTHS.map((sw) => (
+                <button
+                  key={sw}
+                  type="button"
+                  title={`${sw}px`}
+                  onClick={() => {
+                    setStrokeWidth(sw);
+                    if (selection && selection.collection === 'annotations') {
+                      const item = annotations[selection.index];
+                      if (item && (item.type === 'arrow' || item.type === 'circle' || item.type === 'rectangle')) {
+                        pushUndo();
+                        setAnnotations((prev) => prev.map((a, i) =>
+                          i === selection.index ? { ...a, width: sw } : a
+                        ));
+                      }
+                    }
+                  }}
+                  className={cn(
+                    'flex h-7 w-7 items-center justify-center rounded transition-colors',
+                    strokeWidth === sw
+                      ? 'bg-teal-600'
+                      : 'bg-slate-800 hover:bg-slate-700'
+                  )}
+                >
+                  <span
+                    className="rounded-full bg-slate-200"
+                    style={{ width: `${Math.max(sw * 2.5, 4)}px`, height: `${Math.max(sw * 2.5, 4)}px` }}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-8 w-px bg-slate-700" />
+
+          {/* Zoom */}
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Zoom
+            </span>
+            <select
+              value={zoomMode}
+              onChange={(e) => setZoomMode(e.target.value)}
+              className="h-7 rounded border border-slate-600 bg-slate-800 px-1.5 pr-7 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            >
+              <option value="fit">Fit</option>
+              <option value="50">50%</option>
+              <option value="75">75%</option>
+              <option value="100">100%</option>
+              <option value="150">150%</option>
+              <option value="200">200%</option>
+            </select>
           </div>
         </div>
 
@@ -742,7 +1097,12 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
       {/* Canvas area */}
       <div
         ref={containerRef}
-        className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-900/50 p-4"
+        className={cn(
+          'min-h-0 flex-1 bg-slate-900/50',
+          zoomMode === 'fit'
+            ? 'flex overflow-hidden p-4'
+            : 'flex overflow-auto p-4'
+        )}
       >
         {imageLoaded ? (
           <canvas
@@ -751,31 +1111,40 @@ export function ScreenshotEditor({ open, recordingId, filename, onClose, onSave,
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={() => {
-              if (isDrawing) {
-                setIsDrawing(false);
-              }
+              if (isDrawing) setIsDrawing(false);
+              if (isDragging) setIsDragging(false);
             }}
-            className={cn(
-              'shadow-2xl',
-              isClickTool(currentTool) ? 'cursor-crosshair' : 'cursor-crosshair'
-            )}
+            className="m-auto shadow-2xl"
             style={{
               imageRendering: 'auto',
+              cursor: currentTool === 'select'
+                ? (isDragging ? 'grabbing' : 'default')
+                : 'crosshair',
             }}
           />
         ) : (
-          <div className="text-sm text-slate-500">Loading screenshot...</div>
+          <div className="flex h-full items-center justify-center text-sm text-slate-500">Loading screenshot...</div>
         )}
       </div>
 
       {/* Status bar */}
       <div className="flex h-8 shrink-0 items-center justify-between border-t border-slate-800 px-4">
         <span className="text-[11px] text-slate-500">
-          {currentToolConfig ? currentToolConfig.hint : 'Select a tool'}
+          {selection
+            ? (() => {
+                const item = selection.collection === 'regions'
+                  ? regions[selection.index]
+                  : annotations[selection.index];
+                const type = item?.type || selection.collection;
+                return `Selected ${type} \u2014 Drag to move \u00b7 Press Delete to remove`;
+              })()
+            : currentTool === 'select'
+              ? 'Click on an item to select it'
+              : currentToolConfig ? currentToolConfig.hint : 'Select a tool'}
         </span>
         <span className="text-[11px] text-slate-500">
           {imageDimensions.width > 0
-            ? `${imageDimensions.width} x ${imageDimensions.height}px`
+            ? `${imageDimensions.width} \u00d7 ${imageDimensions.height}px \u00b7 ${Math.round(scale * 100)}%`
             : ''}
         </span>
       </div>
