@@ -20,17 +20,9 @@ export function useUndoManager(maxHistory = 100) {
       // Enforce max history limit
       if (history.length > maxHistory) {
         history.shift();
-      } else {
-        indexRef.current = history.length - 1;
       }
 
-      // When we shifted, index stays the same (pointing to last element)
-      if (history.length <= maxHistory) {
-        // already updated above
-      } else {
-        indexRef.current = history.length - 1;
-      }
-
+      indexRef.current = history.length - 1;
       forceUpdate((n) => n + 1);
     },
     [maxHistory]

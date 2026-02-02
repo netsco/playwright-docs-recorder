@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Eye, Square, Grid3X3, ArrowRight, Circle, RectangleHorizontal, Type, Hash, Undo, Eraser, RotateCcw, ZoomIn, MousePointer2 } from 'lucide-react';
+import { Eye, Square, Grid3X3, ArrowRight, Circle, RectangleHorizontal, Type, Hash, Undo, Eraser, RotateCcw, MousePointer2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
@@ -120,7 +120,7 @@ function findItemAtPoint(px, py, regions, annotations) {
 }
 
 export function ScreenshotEditor({ open, recordingId, filename, recordingDir, onClose, onSave, onOpenTextInput }) {
-  const { state, dispatch } = useApp();
+  const { state } = useApp();
   const electronAPI = useElectronAPI();
 
   const canvasRef = useRef(null);
@@ -684,7 +684,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       setCurrentX(x);
       setCurrentY(y);
     },
-    [currentTool, toImageCoords, pushUndo, strokeColor, calloutCounter, onOpenTextInput, dispatch, regions, annotations, selection]
+    [currentTool, toImageCoords, pushUndo, strokeColor, calloutCounter, onOpenTextInput, regions, annotations, selection]
   );
 
   const handleMouseMove = useCallback(
@@ -852,6 +852,20 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
   const currentToolConfig =
     BLUR_TOOLS.find((t) => t.id === currentTool) ||
     ANNOTATE_TOOLS.find((t) => t.id === currentTool);
+
+  function getStatusHint() {
+    if (selection) {
+      const item = selection.collection === 'regions'
+        ? regions[selection.index]
+        : annotations[selection.index];
+      const type = item?.type || selection.collection;
+      return `Selected ${type} \u2014 Drag to move \u00b7 Press Delete to remove`;
+    }
+    if (currentTool === 'select') {
+      return 'Click on an item to select it';
+    }
+    return currentToolConfig ? currentToolConfig.hint : 'Select a tool';
+  }
 
   if (!open) return null;
 
@@ -1130,17 +1144,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       {/* Status bar */}
       <div className="flex h-8 shrink-0 items-center justify-between border-t border-slate-800 px-4">
         <span className="text-[11px] text-slate-500">
-          {selection
-            ? (() => {
-                const item = selection.collection === 'regions'
-                  ? regions[selection.index]
-                  : annotations[selection.index];
-                const type = item?.type || selection.collection;
-                return `Selected ${type} \u2014 Drag to move \u00b7 Press Delete to remove`;
-              })()
-            : currentTool === 'select'
-              ? 'Click on an item to select it'
-              : currentToolConfig ? currentToolConfig.hint : 'Select a tool'}
+          {getStatusHint()}
         </span>
         <span className="text-[11px] text-slate-500">
           {imageDimensions.width > 0

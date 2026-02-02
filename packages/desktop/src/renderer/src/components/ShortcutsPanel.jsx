@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Camera,
   Maximize,
@@ -28,7 +28,6 @@ export function ShortcutsPanel({
   onFullPageScreenshot,
   onNoteScreenshot,
   onClearHighlight,
-  webviewRef,
 }) {
   const { state } = useApp();
   const { showShortcuts, isRecording } = state;

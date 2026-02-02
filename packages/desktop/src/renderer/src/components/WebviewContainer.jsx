@@ -1,4 +1,4 @@
-import { useRef, useEffect, useImperativeHandle, forwardRef, useState, useCallback } from 'react';
+import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 
 export const WebviewContainer = forwardRef(function WebviewContainer(props, ref) {
@@ -132,11 +132,6 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       if (e.errorCode !== -3) {
         console.warn('Webview load failed:', e.errorDescription, e.validatedURL);
       }
-    });
-
-    // Page title updates
-    addListener('page-title-updated', (e) => {
-      // Could be used for status updates if needed
     });
 
     // IPC messages from webview preload

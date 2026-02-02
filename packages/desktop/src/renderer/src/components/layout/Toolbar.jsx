@@ -1,6 +1,4 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight, RotateCw, Square } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ChevronLeft, ChevronRight, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 

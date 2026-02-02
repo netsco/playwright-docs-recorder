@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useMemo } from 'react';
+import { createContext, useContext, useReducer, useMemo } from 'react';
 
 const initialState = {
   // View state
@@ -60,9 +60,6 @@ const initialState = {
   },
   noteModalOpen: false,
   noteModalConfig: { title: 'Add Note', withScreenshot: false },
-  screenshotEditorOpen: false,
-  screenshotEditorState: null,
-  textInputModalOpen: false,
 };
 
 function appReducer(state, action) {
@@ -88,15 +85,12 @@ function appReducer(state, action) {
 
     // Recording
     case 'SET_RECORDING':
-      if (typeof action.payload === 'object' && action.payload !== null) {
-        return {
-          ...state,
-          isRecording: action.payload.isRecording ?? state.isRecording,
-          currentRecordActions: action.payload.recordActions ?? state.currentRecordActions,
-          currentCustomCSS: action.payload.customCSS ?? state.currentCustomCSS,
-        };
-      }
-      return { ...state, isRecording: action.payload };
+      return {
+        ...state,
+        isRecording: action.payload.isRecording ?? state.isRecording,
+        currentRecordActions: action.payload.recordActions ?? state.currentRecordActions,
+        currentCustomCSS: action.payload.customCSS ?? state.currentCustomCSS,
+      };
 
     case 'INCREMENT_ACTION':
       return { ...state, actionCount: state.actionCount + 1 };
@@ -113,15 +107,15 @@ function appReducer(state, action) {
 
     // Editor
     case 'SET_EDITOR_CONTENT':
-      if (typeof action.payload === 'object' && action.payload !== null && 'content' in action.payload) {
-        return {
-          ...state,
-          editorContent: action.payload.content,
-          editorOriginalContent: action.payload.originalContent ?? action.payload.content,
-          editorRecordingDir: action.payload.recordingDir ?? state.editorRecordingDir,
-        };
+      if (typeof action.payload === 'string') {
+        return { ...state, editorContent: action.payload };
       }
-      return { ...state, editorContent: action.payload };
+      return {
+        ...state,
+        editorContent: action.payload.content,
+        editorOriginalContent: action.payload.originalContent ?? action.payload.content,
+        editorRecordingDir: action.payload.recordingDir ?? state.editorRecordingDir,
+      };
 
     case 'SET_EDITOR_ORIGINAL':
       return {
@@ -230,28 +224,6 @@ function appReducer(state, action) {
 
     case 'CLOSE_NOTE_MODAL':
       return { ...state, noteModalOpen: false };
-
-    // Screenshot editor
-    case 'OPEN_SCREENSHOT_EDITOR':
-      return {
-        ...state,
-        screenshotEditorOpen: true,
-        screenshotEditorState: action.payload,
-      };
-
-    case 'CLOSE_SCREENSHOT_EDITOR':
-      return {
-        ...state,
-        screenshotEditorOpen: false,
-        screenshotEditorState: null,
-      };
-
-    // Text input modal
-    case 'OPEN_TEXT_INPUT_MODAL':
-      return { ...state, textInputModalOpen: true };
-
-    case 'CLOSE_TEXT_INPUT_MODAL':
-      return { ...state, textInputModalOpen: false };
 
     // Reset recording state
     case 'RESET_RECORDING_STATE':

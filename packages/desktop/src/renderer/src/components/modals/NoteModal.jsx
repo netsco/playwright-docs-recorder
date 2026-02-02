@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -160,7 +160,7 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
           {/* Markdown Toolbar */}
           <div className="flex items-center gap-0.5 flex-wrap rounded-md border border-slate-700 bg-slate-800/60 p-1">
             {TOOLBAR_GROUPS.map((group, gi) => (
-              <React.Fragment key={gi}>
+              <Fragment key={gi}>
                 {gi > 0 && (
                   <div className="w-px h-5 bg-slate-700 mx-1" />
                 )}
@@ -178,7 +178,7 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
                     <item.icon className="h-3.5 w-3.5" />
                   </button>
                 ))}
-              </React.Fragment>
+              </Fragment>
             ))}
             <div className="w-px h-5 bg-slate-700 mx-1" />
             <button

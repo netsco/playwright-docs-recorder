@@ -1,5 +1,5 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
   ChevronsLeft,
@@ -14,7 +14,7 @@ import {
   FileText,
   MoreVertical,
 } from 'lucide-react';
-import { cn, getProjectInitials, escapeHtml } from '@/lib/utils';
+import { cn, getProjectInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useApp } from '@/context/AppContext';
@@ -37,12 +37,12 @@ export function Sidebar({
     isRecording,
   } = state;
 
-  const [openMenuId, setOpenMenuId] = React.useState(null);
-  const [menuPos, setMenuPos] = React.useState({ top: 0, left: 0 });
-  const menuRef = React.useRef(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const menuRef = useRef(null);
 
   // Close context menu on outside click
-  React.useEffect(() => {
+  useEffect(() => {
     function handleClickOutside(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setOpenMenuId(null);
@@ -226,7 +226,7 @@ export function Sidebar({
 
                 {/* Context menu dropdown (portal) */}
                 {openMenuId === rec.id &&
-                  ReactDOM.createPortal(
+                  createPortal(
                     <div
                       ref={menuRef}
                       className="fixed z-[9999] w-40 rounded-md border border-slate-700 bg-slate-800 py-1 shadow-lg"

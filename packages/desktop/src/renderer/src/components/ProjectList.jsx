@@ -1,7 +1,6 @@
 import { Plus, FolderOpen, Pencil, Folder } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/context/AppContext';
-import { escapeHtml } from '@/lib/utils';
 
 export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOpenFolder }) {
   const { state } = useApp();
@@ -66,7 +65,7 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                       style={{ backgroundColor: project.color || '#14b8a6' }}
                     />
                     <span className="truncate text-sm font-medium text-slate-100">
-                      {escapeHtml(project.name)}
+                      {project.name}
                     </span>
                   </div>
 
@@ -114,7 +113,7 @@ export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOp
                 {/* Description */}
                 {project.description && (
                   <p className="mt-2 line-clamp-2 text-xs text-slate-400">
-                    {escapeHtml(project.description)}
+                    {project.description}
                   </p>
                 )}
 

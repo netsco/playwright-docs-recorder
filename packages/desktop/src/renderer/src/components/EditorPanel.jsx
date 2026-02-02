@@ -183,7 +183,6 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
 
   const [content, setContent] = useState('');
   const [debouncedContent, setDebouncedContent] = useState('');
-  const [selectionStart, setSelectionStart] = useState(0);
 
   const { editorContent, editorOriginalContent, editorRecordingDir, activeHistoryId, editorImageRevision } = state;
 
@@ -218,12 +217,9 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
   const handleContentChange = useCallback(
     (e) => {
       const newValue = e.target.value;
-      const start = e.target.selectionStart;
-      const end = e.target.selectionEnd;
       setContent(newValue);
-      setSelectionStart(start);
       dispatch({ type: 'SET_EDITOR_CONTENT', payload: newValue });
-      push(newValue, start, end);
+      push(newValue, e.target.selectionStart, e.target.selectionEnd);
     },
     [dispatch, push]
   );
@@ -292,9 +288,9 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
     [content, dispatch, push]
   );
 
-  const handleUndo = useCallback(() => {
-    const entry = undo();
-    if (entry) {
+  const applyHistoryEntry = useCallback(
+    (entry) => {
+      if (!entry) return;
       setContent(entry.value);
       dispatch({ type: 'SET_EDITOR_CONTENT', payload: entry.value });
       requestAnimationFrame(() => {
@@ -304,23 +300,12 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
           textarea.setSelectionRange(entry.selectionStart, entry.selectionEnd);
         }
       });
-    }
-  }, [undo, dispatch]);
+    },
+    [dispatch]
+  );
 
-  const handleRedo = useCallback(() => {
-    const entry = redo();
-    if (entry) {
-      setContent(entry.value);
-      dispatch({ type: 'SET_EDITOR_CONTENT', payload: entry.value });
-      requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          textarea.focus();
-          textarea.setSelectionRange(entry.selectionStart, entry.selectionEnd);
-        }
-      });
-    }
-  }, [redo, dispatch]);
+  const handleUndo = useCallback(() => applyHistoryEntry(undo()), [undo, applyHistoryEntry]);
+  const handleRedo = useCallback(() => applyHistoryEntry(redo()), [redo, applyHistoryEntry]);
 
   const handleDiscard = useCallback(() => {
     setContent(editorOriginalContent);

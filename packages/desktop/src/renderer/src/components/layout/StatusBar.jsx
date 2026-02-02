@@ -1,4 +1,3 @@
-import React from 'react';
 import { Monitor, List, Keyboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';

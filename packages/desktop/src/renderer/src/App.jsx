@@ -18,6 +18,27 @@ import TextInputModal from '@/components/modals/TextInputModal';
 import { ShortcutsPanel } from '@/components/ShortcutsPanel';
 import { ScreenshotEditor } from '@/components/ScreenshotEditor';
 
+function formatActionMessage(action) {
+  switch (action.type) {
+    case 'click':
+      return action.selector ? `click \u2192 ${action.selector}` : 'click';
+    case 'fill':
+      return action.selector
+        ? `fill \u2192 ${action.selector} \u2192 "${action.value?.substring(0, 20)}"`
+        : 'fill';
+    case 'goto':
+      return action.url ? `goto \u2192 ${action.url}` : 'goto';
+    case 'screenshot':
+      return `screenshot \u2192 ${action.filename || 'captured'}`;
+    case 'hover':
+      return action.selector ? `hover \u2192 ${action.selector}` : 'hover';
+    case 'note':
+      return `note \u2192 "${action.note?.substring(0, 30)}"`;
+    default:
+      return action.type;
+  }
+}
+
 function AppContent() {
   const { state, dispatch } = useApp();
   const api = useElectronAPI();
@@ -68,31 +89,12 @@ function AppContent() {
         dispatch({ type: 'INCREMENT_ACTION' });
       }
 
-      // Format and add log entry
-      let msg = action.type;
-      if (action.type === 'click' && action.selector) {
-        msg = `click \u2192 ${action.selector}`;
-      } else if (action.type === 'fill' && action.selector) {
-        msg = `fill \u2192 ${action.selector} \u2192 "${action.value?.substring(0, 20)}"`;
-      } else if (action.type === 'goto' && action.url) {
-        msg = `goto \u2192 ${action.url}`;
-      } else if (action.type === 'screenshot') {
-        msg = `screenshot \u2192 ${action.filename || 'captured'}`;
-      } else if (action.type === 'hover' && action.selector) {
-        msg = `hover \u2192 ${action.selector}`;
-      } else if (action.type === 'note') {
-        msg = `note \u2192 "${action.note?.substring(0, 30)}"`;
-      }
-
       dispatch({
         type: 'ADD_LOG_ENTRY',
-        payload: { message: msg, type: 'action' },
+        payload: { message: formatActionMessage(action), type: 'action' },
       });
     });
 
-    api.onScreenshotTaken((data) => {
-      // Could update screenshot previews or show notifications
-    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== Project Management =====
@@ -155,7 +157,7 @@ function AppContent() {
             viewport,
             separator,
             recordActions,
-            customCSS: customCSS || null,
+            customCSS: customCSS || '',
             injectCSS: !!customCSS,
             settingsOverride: settingsOverride || {},
           });
@@ -907,7 +909,6 @@ function AppContent() {
                   payload: sel ? `Highlighted: ${sel}` : 'Ready',
                 })
               }
-              onLoadingChange={() => {}}
             />
           )}
 
@@ -925,7 +926,7 @@ function AppContent() {
           )}
 
           {/* Shortcuts Panel (during recording) */}
-          {state.isRecording && state.showShortcuts && ShortcutsPanel && (
+          {state.isRecording && state.showShortcuts && (
             <ShortcutsPanel
               onStopRecording={handleStopRecording}
               onScreenshot={() => captureScreenshot(null, null, false)}
@@ -970,7 +971,6 @@ function AppContent() {
         onOpenChange={(open) =>
           !open && dispatch({ type: 'CLOSE_MOVE_MODAL' })
         }
-        recordingId={state.pendingMoveRecordingId}
         onMove={handleMoveRecording}
       />
 
@@ -996,7 +996,7 @@ function AppContent() {
         onSave={handleNoteSave}
       />
 
-      {screenshotEditorConfig && ScreenshotEditor && (
+      {screenshotEditorConfig && (
         <ScreenshotEditor
           open={!!screenshotEditorConfig}
           recordingId={screenshotEditorConfig.recordingId}

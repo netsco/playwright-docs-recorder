@@ -1,4 +1,3 @@
-import React from 'react';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -12,16 +11,12 @@ import { Button } from '@/components/ui/button';
 import { useApp } from '@/context/AppContext';
 import { FolderOpen } from 'lucide-react';
 
-export default function MoveRecordingModal({ open, onOpenChange, recordingId, onMove }) {
+export default function MoveRecordingModal({ open, onOpenChange, onMove }) {
   const { state } = useApp();
 
   const otherProjects = state.projects.filter(
     (p) => p.id !== state.currentProjectId
   );
-
-  const handleMove = (targetProjectId) => {
-    onMove(recordingId, targetProjectId);
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,7 +47,7 @@ export default function MoveRecordingModal({ open, onOpenChange, recordingId, on
                   'bg-slate-800 border border-slate-700 text-slate-200',
                   'hover:bg-slate-700 hover:border-slate-600 transition-colors'
                 )}
-                onClick={() => handleMove(project.id)}
+                onClick={() => onMove(project.id)}
               >
                 <span
                   className="h-3 w-3 rounded-full shrink-0"
