@@ -69,7 +69,7 @@ function appReducer(state, action) {
   switch (action.type) {
     // View
     case 'SET_VIEW':
-      return { ...state, currentView: action.payload };
+      return { ...state, currentView: action.payload, statusText: 'Ready' };
 
     // Projects
     case 'SET_PROJECTS':

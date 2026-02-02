@@ -48,6 +48,15 @@ function AppContent() {
   const [screenshotEditorConfig, setScreenshotEditorConfig] = useState(null);
   const [textInputConfig, setTextInputConfig] = useState(null);
 
+  const hasUnsavedEditorChanges =
+    state.currentView === 'editor' &&
+    state.editorContent !== state.editorOriginalContent;
+
+  const confirmDiscardChanges = useCallback(() => {
+    if (!hasUnsavedEditorChanges) return true;
+    return confirm('You have unsaved changes. Discard and leave?');
+  }, [hasUnsavedEditorChanges]);
+
   // ===== Theme =====
   useEffect(() => {
     if (state.theme === 'dark') {
@@ -128,13 +137,13 @@ function AppContent() {
   );
 
   const handleBackToProjects = useCallback(async () => {
-    // TODO: Check for unsaved editor changes before navigating away
+    if (!confirmDiscardChanges()) return;
     await api.setLastOpenedProject(null);
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: null });
     dispatch({ type: 'SET_SIDEBAR_VISIBLE', payload: false });
     dispatch({ type: 'SET_VIEW', payload: 'projectList' });
     document.title = 'Documentation Recorder';
-  }, [api, dispatch]);
+  }, [api, dispatch, confirmDiscardChanges]);
 
   // ===== Recording =====
   const handleStartRecording = useCallback(
@@ -886,9 +895,15 @@ function AppContent() {
               payload: state.currentProjectId,
             })
           }
-          onNewRecording={() => dispatch({ type: 'SET_VIEW', payload: 'welcome' })}
+          onNewRecording={() => {
+            if (!confirmDiscardChanges()) return;
+            dispatch({ type: 'SET_VIEW', payload: 'welcome' });
+          }}
           onRefetchAll={handleRefetchAll}
-          onSelectRecording={(id) => openEditor(id)}
+          onSelectRecording={(id) => {
+            if (!confirmDiscardChanges()) return;
+            openEditor(id);
+          }}
           onRecordingAction={handleRecordingAction}
         />
       )}
@@ -944,7 +959,10 @@ function AppContent() {
 
           {state.currentView === 'editor' && (
             <EditorPanel
-              onBack={() => dispatch({ type: 'SET_VIEW', payload: 'welcome' })}
+              onBack={() => {
+                if (!confirmDiscardChanges()) return;
+                dispatch({ type: 'SET_VIEW', payload: 'welcome' });
+              }}
               onOpenScreenshotEditor={(recordingId, filename) =>
                 setScreenshotEditorConfig({
                   recordingId,
