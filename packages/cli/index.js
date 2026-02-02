@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { generateScript, generateMarkdown, slugify, getLegendHTML, getLegendStyles, getKbdStyles } = require('@doc-recorder/shared');
+const { generateScript, generateMarkdown, slugify, getLegendHTML, getLegendStyles, getKbdStyles, renderAnnotations } = require('@doc-recorder/shared');
 
 class DocRecorder {
   constructor(options = {}) {
@@ -612,22 +612,67 @@ class DocRecorder {
     const filename = `screenshot-${String(this.screenshotCounter).padStart(3, '0')}.png`;
     const filepath = path.join(this.outputDir, 'screenshots', filename);
 
-    // Hide legend before screenshot
+    // Capture highlight overlay rect before hiding it
+    let highlightOverlay = null;
+    if (highlightSelector) {
+      try {
+        highlightOverlay = await this.page.evaluate(() => {
+          const overlay = document.getElementById('__highlight-overlay');
+          if (!overlay || overlay.style.display === 'none') return null;
+          const rect = overlay.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return null;
+          // The overlay is offset by -3px and padded by +6px from the actual element
+          // Store the visual overlay position as-is
+          return {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            borderRadius: 4
+          };
+        });
+      } catch {
+        // Ignore errors reading overlay rect
+      }
+    }
+
+    // Hide legend and highlight overlay before screenshot
     await this.page.evaluate(() => {
       const legend = document.getElementById('__shortcuts-legend');
       if (legend) legend.style.display = 'none';
+      const overlay = document.getElementById('__highlight-overlay');
+      if (overlay) overlay.style.display = 'none';
     });
 
     await this.page.screenshot({ path: filepath, fullPage });
 
-    // Show legend after screenshot
+    // Restore legend and highlight overlay after screenshot
     await this.page.evaluate(() => {
       const legend = document.getElementById('__shortcuts-legend');
       if (legend) legend.style.display = 'block';
+      const overlay = document.getElementById('__highlight-overlay');
+      if (overlay) overlay.style.display = 'block';
     });
 
-    this.screenshots.push({ filename, highlight: highlightSelector, note, fullPage });
-    this.actions.push({ type: 'screenshot', filename, highlight: highlightSelector, note, fullPage });
+    // Bake highlight overlay onto saved PNG and backup original
+    if (highlightOverlay) {
+      try {
+        const originalsDir = path.join(this.outputDir, 'screenshots-original');
+        fs.mkdirSync(originalsDir, { recursive: true });
+        fs.copyFileSync(filepath, path.join(originalsDir, filename));
+        await renderAnnotations(filepath, [{ type: 'elementHighlight', ...highlightOverlay }], { outputPath: filepath });
+      } catch (err) {
+        console.warn(`⚠️  Failed to bake highlight overlay: ${err.message}`);
+      }
+    }
+
+    const screenshotData = { filename, highlight: highlightSelector, note, fullPage };
+    if (highlightOverlay) {
+      screenshotData.highlightOverlay = { ...highlightOverlay, selector: highlightSelector };
+    }
+
+    this.screenshots.push(screenshotData);
+    this.actions.push({ type: 'screenshot', ...screenshotData });
 
     const fullPageLabel = fullPage ? ' [full page]' : '';
     console.log(`📸 ${filename}${fullPageLabel}${highlightSelector ? ` [${highlightSelector}]` : ''}${note ? ` - ${note}` : ''}`);

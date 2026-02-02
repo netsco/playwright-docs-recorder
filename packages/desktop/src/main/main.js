@@ -25,7 +25,19 @@ function createWindow() {
     title: 'Documentation Recorder'
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  // In production/packaged, load the Vite-built output
+  // In development, load the Vite-built output (run `npm run build:renderer` first)
+  const rendererPath = path.join(__dirname, '../renderer/dist/index.html');
+  const fs = require('fs');
+  if (fs.existsSync(rendererPath)) {
+    mainWindow.loadFile(rendererPath);
+  } else {
+    // Fallback: try loading from Vite dev server
+    mainWindow.loadURL('http://localhost:5173').catch(() => {
+      // Final fallback: load source index.html directly (won't work with JSX)
+      mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    });
+  }
 
   // Save window bounds on close
   mainWindow.on('close', () => {

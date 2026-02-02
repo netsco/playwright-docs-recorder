@@ -30,7 +30,8 @@ function initSettingsStore() {
       showShortcuts: true,
       injectCSS: false,
       customCSS: '',
-      lastOpenedProjectId: null
+      lastOpenedProjectId: null,
+      theme: 'light'
     }
   });
   return store;

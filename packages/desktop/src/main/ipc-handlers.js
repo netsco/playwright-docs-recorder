@@ -65,7 +65,15 @@ function registerIpcHandlers() {
     // Run migration on first access
     migrateExistingRecordings(outputDir);
 
-    return loadProjects(outputDir);
+    const data = loadProjects(outputDir);
+
+    // Enrich each project with recording count
+    data.projects = data.projects.map(project => {
+      const recordings = getProjectRecordings(outputDir, project.id);
+      return { ...project, recordingCount: recordings.length };
+    });
+
+    return data;
   });
 
   ipcMain.handle('create-project', async (event, options) => {
@@ -250,7 +258,7 @@ function registerIpcHandlers() {
 
   // ===== Screenshot Capture =====
 
-  ipcMain.handle('capture-screenshot', async (event, { selector, note, fullPage = false, imageDataUrl }) => {
+  ipcMain.handle('capture-screenshot', async (event, { selector, note, fullPage = false, imageDataUrl, highlightOverlay }) => {
     if (!currentRecording) {
       return { success: false, error: 'No recording in progress' };
     }
@@ -267,7 +275,8 @@ function registerIpcHandlers() {
       if (currentProject) {
         baseDir = getProjectFolderPath(outputDir, currentProject);
       }
-      const screenshotsDir = path.join(baseDir, currentRecording.id, 'screenshots');
+      const recordingDir = path.join(baseDir, currentRecording.id);
+      const screenshotsDir = path.join(recordingDir, 'screenshots');
 
       // Convert data URL to buffer
       const base64Data = imageDataUrl.replace(/^data:image\/png;base64,/, '');
@@ -275,7 +284,23 @@ function registerIpcHandlers() {
 
       const filepath = saveScreenshot(screenshotsDir, filename, imageBuffer);
 
+      // Bake highlight overlay onto saved PNG and backup original
+      if (highlightOverlay) {
+        try {
+          const originalsDir = path.join(recordingDir, 'screenshots-original');
+          fs.mkdirSync(originalsDir, { recursive: true });
+          fs.copyFileSync(filepath, path.join(originalsDir, filename));
+          const { renderAnnotations } = require('@doc-recorder/shared');
+          await renderAnnotations(filepath, [{ type: 'elementHighlight', ...highlightOverlay }], { outputPath: filepath });
+        } catch (err) {
+          console.warn(`Failed to bake highlight overlay: ${err.message}`);
+        }
+      }
+
       const screenshotData = { filename, highlight: selector, note, fullPage };
+      if (highlightOverlay) {
+        screenshotData.highlightOverlay = highlightOverlay;
+      }
       currentRecording.screenshots.push(screenshotData);
       const action = { type: 'screenshot', ...screenshotData };
       currentRecording.actions.push(action);
@@ -346,7 +371,8 @@ function registerIpcHandlers() {
       showLog: settings.get('showLog'),
       showShortcuts: settings.get('showShortcuts'),
       injectCSS: settings.get('injectCSS'),
-      customCSS: settings.get('customCSS')
+      customCSS: settings.get('customCSS'),
+      theme: settings.get('theme')
     };
   });
 
@@ -359,6 +385,7 @@ function registerIpcHandlers() {
     if (newSettings.showShortcuts !== undefined) settings.set('showShortcuts', newSettings.showShortcuts);
     if (newSettings.injectCSS !== undefined) settings.set('injectCSS', newSettings.injectCSS);
     if (newSettings.customCSS !== undefined) settings.set('customCSS', newSettings.customCSS);
+    if (newSettings.theme !== undefined) settings.set('theme', newSettings.theme);
     return { success: true };
   });
 
@@ -442,7 +469,7 @@ function registerIpcHandlers() {
 
   // ===== Refetch =====
 
-  ipcMain.handle('save-refetched-screenshot', async (event, { recordingId, filename, imageDataUrl, projectId }) => {
+  ipcMain.handle('save-refetched-screenshot', async (event, { recordingId, filename, imageDataUrl, highlightOverlay, projectId }) => {
     const settings = getSettingsStore();
     const outputDir = settings.get('outputDir');
 
@@ -454,14 +481,50 @@ function registerIpcHandlers() {
       }
     }
 
-    const screenshotsDir = path.join(baseDir, recordingId, 'screenshots');
+    const recordingDir = path.join(baseDir, recordingId);
+    const screenshotsDir = path.join(recordingDir, 'screenshots');
 
     try {
       // Convert data URL to buffer
       const base64Data = imageDataUrl.replace(/^data:image\/png;base64,/, '');
       const imageBuffer = Buffer.from(base64Data, 'base64');
 
-      saveScreenshot(screenshotsDir, filename, imageBuffer);
+      const filepath = saveScreenshot(screenshotsDir, filename, imageBuffer);
+
+      // Bake highlight overlay onto saved PNG and backup original
+      if (highlightOverlay) {
+        try {
+          const originalsDir = path.join(recordingDir, 'screenshots-original');
+          fs.mkdirSync(originalsDir, { recursive: true });
+          const originalPath = path.join(originalsDir, filename);
+          if (!fs.existsSync(originalPath)) {
+            fs.copyFileSync(filepath, originalPath);
+          }
+          const { renderAnnotations } = require('@doc-recorder/shared');
+          await renderAnnotations(filepath, [{ type: 'elementHighlight', ...highlightOverlay }], { outputPath: filepath });
+        } catch (err) {
+          console.warn(`Failed to bake highlight overlay on refetch: ${err.message}`);
+        }
+
+        // Update actions.json with highlightOverlay
+        try {
+          const actionsPath = path.join(recordingDir, 'actions.json');
+          if (fs.existsSync(actionsPath)) {
+            const actionsData = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+            const actions = actionsData.actions || actionsData;
+            const screenshotAction = actions.find(
+              a => a.type === 'screenshot' && a.filename === filename
+            );
+            if (screenshotAction && !screenshotAction.highlightOverlay) {
+              screenshotAction.highlightOverlay = highlightOverlay;
+              fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
+            }
+          }
+        } catch (err) {
+          console.warn(`Failed to update actions.json with highlightOverlay: ${err.message}`);
+        }
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Failed to save refetched screenshot:', error);
@@ -531,6 +594,7 @@ function registerIpcHandlers() {
     // Load existing edits from actions.json
     let blurRegions = [];
     let annotations = [];
+    let highlightOverlay = null;
     try {
       if (fs.existsSync(actionsPath)) {
         const actionsData = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
@@ -541,16 +605,17 @@ function registerIpcHandlers() {
         if (screenshotAction) {
           blurRegions = screenshotAction.blurRegions || [];
           annotations = screenshotAction.annotations || [];
+          highlightOverlay = screenshotAction.highlightOverlay || null;
         }
       }
     } catch (err) {
       console.warn('Failed to load existing edits:', err.message);
     }
 
-    return { success: true, path: screenshotPath, blurRegions, annotations };
+    return { success: true, path: screenshotPath, blurRegions, annotations, highlightOverlay };
   });
 
-  ipcMain.handle('save-screenshot-edits', async (event, { recordingId, filename, blurRegions, annotations, projectId }) => {
+  ipcMain.handle('save-screenshot-edits', async (event, { recordingId, filename, blurRegions, annotations, highlightOverlay, projectId }) => {
     const settings = getSettingsStore();
     const outputDir = settings.get('outputDir');
 
@@ -589,7 +654,7 @@ function registerIpcHandlers() {
       }
 
       // Backup original on first edit (non-destructive editing)
-      const hasAnyEdits = (blurRegions && blurRegions.length > 0) || (annotations && annotations.length > 0);
+      const hasAnyEdits = (blurRegions && blurRegions.length > 0) || (annotations && annotations.length > 0) || !!highlightOverlay;
       if (hasAnyEdits && !fs.existsSync(originalPath)) {
         fs.mkdirSync(originalsDir, { recursive: true });
         fs.copyFileSync(screenshotPath, originalPath);
@@ -611,6 +676,13 @@ function registerIpcHandlers() {
         delete screenshotAction.annotations;
       }
 
+      if (highlightOverlay) {
+        screenshotAction.highlightOverlay = highlightOverlay;
+        screenshotAction.hasEdits = true;
+      } else {
+        delete screenshotAction.highlightOverlay;
+      }
+
       // Update hasEdits flag
       if (!hasAnyEdits) {
         delete screenshotAction.hasEdits;
@@ -618,6 +690,11 @@ function registerIpcHandlers() {
 
       // Save updated actions.json
       fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
+
+      // Restore original image when all edits are removed
+      if (!hasAnyEdits && fs.existsSync(originalPath)) {
+        fs.copyFileSync(originalPath, screenshotPath);
+      }
 
       // Determine source image: use original if it exists, otherwise use screenshot
       const sourcePath = fs.existsSync(originalPath) ? originalPath : screenshotPath;
@@ -633,14 +710,23 @@ function registerIpcHandlers() {
         }
       }
 
-      // Apply annotations using sharp (if any) - apply after blur
+      // Build combined annotations array: highlight overlay renders first (behind), then user annotations
+      const allAnnotations = [];
+      if (highlightOverlay) {
+        allAnnotations.push({ type: 'elementHighlight', ...highlightOverlay });
+      }
       if (annotations && annotations.length > 0) {
+        allAnnotations.push(...annotations);
+      }
+
+      // Apply annotations using sharp (if any) - apply after blur
+      if (allAnnotations.length > 0) {
         try {
           const { renderAnnotations } = require('@doc-recorder/shared');
           // If blur was applied, annotations go on top of the blurred image
           // If no blur, annotations are applied to the source (original or screenshot)
           const annoSource = (blurRegions && blurRegions.length > 0) ? screenshotPath : sourcePath;
-          await renderAnnotations(annoSource, annotations, { outputPath: screenshotPath });
+          await renderAnnotations(annoSource, allAnnotations, { outputPath: screenshotPath });
         } catch (annoError) {
           console.warn('Failed to render annotations (sharp may not be installed):', annoError.message);
           // Continue - the annotations are saved in actions.json for later processing
@@ -696,6 +782,7 @@ function registerIpcHandlers() {
       // Clear edits from actions.json
       delete screenshotAction.blurRegions;
       delete screenshotAction.annotations;
+      delete screenshotAction.highlightOverlay;
       delete screenshotAction.hasEdits;
 
       // Save updated actions.json
