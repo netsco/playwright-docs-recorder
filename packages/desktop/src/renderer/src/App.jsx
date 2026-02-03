@@ -347,12 +347,15 @@ function AppContent() {
           )
           .catch(() => {});
 
+        const pageTitle = await wv.executeJavaScript('document.title').catch(() => '');
+
         const result = await api.captureScreenshot({
           selector,
           note,
           fullPage,
           imageDataUrl: dataUrl,
           highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector } : undefined,
+          pageTitle,
         });
 
         if (result.success) {

@@ -27,7 +27,7 @@ function generateMarkdown(recording) {
       if (action.note) {
         lines.push(action.note, '');
       }
-      lines.push(`![${action.filename}](screenshots/${action.filename})`, '');
+      lines.push(`![${action.pageTitle || action.filename}](screenshots/${action.filename})`, '');
       if (separator) {
         lines.push(separator, '');
       }

@@ -309,7 +309,7 @@ function registerIpcHandlers() {
 
   // ===== Screenshot Capture =====
 
-  ipcMain.handle('capture-screenshot', async (event, { selector, note, fullPage = false, imageDataUrl, highlightOverlay }) => {
+  ipcMain.handle('capture-screenshot', async (event, { selector, note, fullPage = false, imageDataUrl, highlightOverlay, pageTitle }) => {
     if (!currentRecording) {
       return { success: false, error: 'No recording in progress' };
     }
@@ -348,7 +348,7 @@ function registerIpcHandlers() {
         }
       }
 
-      const screenshotData = { filename, highlight: selector, note, fullPage };
+      const screenshotData = { filename, highlight: selector, note, fullPage, pageTitle };
       if (highlightOverlay) {
         screenshotData.highlightOverlay = highlightOverlay;
       }
