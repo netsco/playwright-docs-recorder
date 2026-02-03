@@ -1,6 +1,6 @@
 {
   "name": "@doc-recorder/shared",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Shared utilities for Documentation Recorder",
   "main": "index.js",
   "exports": {

@@ -1,5 +1,11 @@
 # @doc-recorder/shared
 
+## 0.6.1
+
+### Patch Changes
+
+- Add project import/export as ZIP archives, use page title as screenshot alt text in markdown, and improve light mode palette and modal label spacing.
+
 ## 0.6.0
 
 ### Minor Changes
