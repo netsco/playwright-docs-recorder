@@ -1,4 +1,5 @@
-import { Monitor, List, Keyboard } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Monitor, List, Keyboard, Download, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/context/AppContext';
@@ -16,6 +17,32 @@ export function StatusBar() {
     settings,
   } = state;
 
+  const [updateStatus, setUpdateStatus] = useState(null); // 'available' | 'downloading' | 'downloaded'
+  const [updateVersion, setUpdateVersion] = useState('');
+  const [downloadPercent, setDownloadPercent] = useState(0);
+
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    window.electronAPI.onUpdateAvailable((info) => {
+      setUpdateStatus('available');
+      setUpdateVersion(info.version);
+    });
+
+    window.electronAPI.onDownloadProgress((progress) => {
+      setUpdateStatus('downloading');
+      setDownloadPercent(progress.percent);
+    });
+
+    window.electronAPI.onUpdateDownloaded(() => {
+      setUpdateStatus('downloaded');
+    });
+
+    window.electronAPI.onUpdateError(() => {
+      setUpdateStatus(null);
+    });
+  }, []);
+
   const rawViewport = settings?.viewport || '1280x720';
   const viewport =
     typeof rawViewport === 'object'
@@ -24,9 +51,36 @@ export function StatusBar() {
 
   return (
     <div className="flex h-7 shrink-0 items-center justify-between border-t border-border bg-card px-3 text-xs text-muted-foreground">
-      {/* Left: Status text */}
+      {/* Left: Status text + update banner */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate">{statusText}</span>
+        {updateStatus === 'available' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 gap-1 rounded px-2 text-xs text-teal-400 hover:text-teal-300"
+            onClick={() => window.electronAPI.downloadUpdate()}
+          >
+            <Download className="h-3 w-3" />
+            Update v{updateVersion}
+          </Button>
+        )}
+        {updateStatus === 'downloading' && (
+          <span className="text-xs text-teal-400">
+            Downloading... {downloadPercent}%
+          </span>
+        )}
+        {updateStatus === 'downloaded' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 gap-1 rounded px-2 text-xs text-teal-400 hover:text-teal-300"
+            onClick={() => window.electronAPI.installUpdate()}
+          >
+            <RotateCw className="h-3 w-3" />
+            Restart to update
+          </Button>
+        )}
       </div>
 
       {/* Center: Recording indicator */}

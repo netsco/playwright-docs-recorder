@@ -70,3 +70,8 @@ deb:
 asar: true
 asarUnpack: "node_modules/{sharp,@img}/**/*.{node,dll,dylib,so}"
 compression: maximum
+
+publish:
+  provider: github
+  owner: netsco
+  repo: playwright-docs-recorder

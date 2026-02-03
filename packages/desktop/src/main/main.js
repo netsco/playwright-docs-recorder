@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./ipc-handlers');
 const { initSettingsStore, getSettingsStore } = require('./settings-store');
+const { initAutoUpdater } = require('./auto-updater');
 
 let mainWindow;
 
@@ -66,6 +67,7 @@ if (!gotTheLock) {
     initSettingsStore();
     registerIpcHandlers();
     createWindow();
+    initAutoUpdater(mainWindow);
     Menu.setApplicationMenu(null);
 
     app.on('activate', () => {

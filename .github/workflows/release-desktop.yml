@@ -59,7 +59,9 @@ jobs:
       - name: Build Electron app (Windows)
         if: matrix.platform == 'win'
         working-directory: packages/desktop
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install 7-Zip (macOS)
         if: matrix.platform == 'mac'
@@ -68,9 +70,10 @@ jobs:
       - name: Build Electron app (macOS)
         if: matrix.platform == 'mac'
         working-directory: packages/desktop
-        run: npx electron-builder --mac --publish never
+        run: npx electron-builder --mac --publish always
         env:
           USE_SYSTEM_7ZA: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install 7-Zip (Linux)
         if: matrix.platform == 'linux'
@@ -79,55 +82,7 @@ jobs:
       - name: Build Electron app (Linux)
         if: matrix.platform == 'linux'
         working-directory: packages/desktop
-        run: npx electron-builder --linux --publish never
+        run: npx electron-builder --linux --publish always
         env:
           USE_SYSTEM_7ZA: true
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.platform }}
-          path: |
-            packages/desktop/dist/*.exe
-            packages/desktop/dist/*.dmg
-            packages/desktop/dist/*.AppImage
-            packages/desktop/dist/*.deb
-          if-no-files-found: error
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: List artifacts
-        run: ls -la artifacts/
-
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version || 'manual-build' }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/}"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Documentation Recorder ${{ steps.version.outputs.version }}
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') }}
-          generate_release_notes: true
-          files: |
-            artifacts/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

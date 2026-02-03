@@ -53,6 +53,23 @@ const dependencies = [
   'require-from-string',
   'fast-uri',  // used by ajv 8.x
 
+  // electron-updater and dependencies
+  'electron-updater',
+  'builder-util-runtime',
+  'sax',
+  'lazy-val',
+  'tiny-typed-emitter',
+  'lodash.escaperegexp',
+  'lodash.isequal',
+  'fs-extra',
+  'graceful-fs',
+  'jsonfile',
+  'universalify',
+  'js-yaml',
+  'argparse',
+  'debug',
+  'ms',
+
   // sharp (native image processing) and dependencies
   'sharp',
   '@img',
