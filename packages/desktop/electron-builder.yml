@@ -65,6 +65,8 @@ appImage:
 deb:
   artifactName: DocRecorder-${version}-linux.deb
 
-# asar disabled - afterPack hook replaces node_modules after copying
-asar: false
+# asar required for macOS (framework symlinks fail without it)
+# afterPack hook extracts the asar, replaces node_modules, and repacks
+asar: true
+asarUnpack: "node_modules/{sharp,@img}/**/*.{node,dll,dylib,so}"
 compression: maximum
