@@ -70,6 +70,12 @@ function copyRecursiveSync(src, dest) {
     return false;
   }
 
+  // Resolve symlinks so no symlinks end up in the output
+  const lstat = fs.lstatSync(src);
+  if (lstat.isSymbolicLink()) {
+    src = fs.realpathSync(src);
+  }
+
   const stat = fs.statSync(src);
 
   if (stat.isDirectory()) {
@@ -127,3 +133,17 @@ console.log(`\nDone: ${copied} packages copied, ${missing} not found`);
 if (missing > 0) {
   console.log('\nWarning: Some dependencies were not found. Run "npm install" at the root first.');
 }
+
+// Generate a minimal package-lock.json so electron-builder treats this as a
+// standalone project and uses our local node_modules instead of discovering
+// the workspace root (which contains symlinks that break macOS builds).
+const lockfilePath = path.join(desktopDir, 'package-lock.json');
+const pkg = JSON.parse(fs.readFileSync(path.join(desktopDir, 'package.json'), 'utf8'));
+const lockfile = {
+  name: pkg.name,
+  version: pkg.version,
+  lockfileVersion: 3,
+  packages: {}
+};
+fs.writeFileSync(lockfilePath, JSON.stringify(lockfile, null, 2));
+console.log('\nGenerated package-lock.json to prevent workspace root detection');
