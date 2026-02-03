@@ -42,9 +42,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Tailwind CSS
+      - name: Build renderer
         working-directory: packages/desktop
-        run: npm run css:build
+        run: npm run build:renderer
 
       - name: Setup production dependencies
         working-directory: packages/desktop
