@@ -1,5 +1,11 @@
 # @doc-recorder/desktop
 
+## 0.10.0
+
+### Minor Changes
+
+- Custom titlebar with hamburger menu, sidebar toggle button, and native window controls overlay. Fixes editor panel width with frontmatter-only content and screenshot editor overlapping the titlebar.
+
 ## 0.9.4
 
 ### Patch Changes
