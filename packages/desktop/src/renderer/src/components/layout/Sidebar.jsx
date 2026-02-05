@@ -177,7 +177,7 @@ export function Sidebar({
       </div>
 
       {/* Recording history list */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="py-1">
           {recordings.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">
@@ -287,13 +287,13 @@ export function Sidebar({
 
       {/* Screenshot previews */}
       {screenshotPreviews.length > 0 && (
-        <div className="border-t border-border">
-          <div className="px-3 py-2">
+        <div className="flex min-h-0 flex-col border-t border-border" style={{ maxHeight: '50%' }}>
+          <div className="shrink-0 px-3 py-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Screenshots
             </span>
           </div>
-          <ScrollArea className="max-h-48">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="flex flex-col gap-1 px-2 pb-2">
               {screenshotPreviews.map((preview, i) => (
                 <div

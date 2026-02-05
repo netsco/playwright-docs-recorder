@@ -17,12 +17,15 @@ export function StatusBar() {
     settings,
   } = state;
 
+  const [appVersion, setAppVersion] = useState('');
   const [updateStatus, setUpdateStatus] = useState(null); // 'available' | 'downloading' | 'downloaded'
   const [updateVersion, setUpdateVersion] = useState('');
   const [downloadPercent, setDownloadPercent] = useState(0);
 
   useEffect(() => {
     if (!window.electronAPI) return;
+
+    window.electronAPI.getAppVersion().then(setAppVersion);
 
     window.electronAPI.onUpdateAvailable((info) => {
       setUpdateStatus('available');
@@ -58,7 +61,7 @@ export function StatusBar() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-5 gap-1 rounded px-2 text-xs text-teal-400 hover:text-teal-300"
+            className="h-5 gap-1 rounded px-2 text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
             onClick={() => window.electronAPI.downloadUpdate()}
           >
             <Download className="h-3 w-3" />
@@ -66,7 +69,7 @@ export function StatusBar() {
           </Button>
         )}
         {updateStatus === 'downloading' && (
-          <span className="text-xs text-teal-400">
+          <span className="text-xs text-teal-600 dark:text-teal-400">
             Downloading... {downloadPercent}%
           </span>
         )}
@@ -74,7 +77,7 @@ export function StatusBar() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-5 gap-1 rounded px-2 text-xs text-teal-400 hover:text-teal-300"
+            className="h-5 gap-1 rounded px-2 text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
             onClick={() => window.electronAPI.installUpdate()}
           >
             <RotateCw className="h-3 w-3" />
@@ -114,7 +117,7 @@ export function StatusBar() {
               className={cn(
                 'h-5 w-5 rounded',
                 showLog
-                  ? 'bg-teal-900/50 text-teal-400'
+                  ? 'bg-teal-600/20 text-teal-600 dark:bg-teal-900/50 dark:text-teal-400'
                   : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() => dispatch({ type: 'TOGGLE_LOG' })}
@@ -128,7 +131,7 @@ export function StatusBar() {
               className={cn(
                 'h-5 w-5 rounded',
                 showShortcuts
-                  ? 'bg-teal-900/50 text-teal-400'
+                  ? 'bg-teal-600/20 text-teal-600 dark:bg-teal-900/50 dark:text-teal-400'
                   : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() => dispatch({ type: 'TOGGLE_SHORTCUTS' })}
@@ -143,6 +146,9 @@ export function StatusBar() {
           </>
         )}
         <ThemeToggle />
+        {appVersion && (
+          <span className="ml-1 text-muted-foreground/50">v{appVersion}</span>
+        )}
       </div>
     </div>
   );

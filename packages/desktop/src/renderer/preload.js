@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // App version from package.json
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+
   // Get webview preload path (file:/// with three slashes for Windows)
   getWebviewPreloadPath: () => {
     const p = path.join(__dirname, '../webview/webview-preload.js').replace(/\\/g, '/');

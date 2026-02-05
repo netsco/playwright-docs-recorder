@@ -1,4 +1,4 @@
-const { ipcMain, dialog } = require('electron');
+const { app, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { slugify } = require('@doc-recorder/shared');
@@ -58,6 +58,9 @@ function generateUniqueRecordingId(title, projectFolder) {
  * Register all IPC handlers for the main process.
  */
 function registerIpcHandlers() {
+  // ===== App info =====
+  ipcMain.handle('get-app-version', () => app.getVersion());
+
   // ===== Project Management =====
 
   ipcMain.handle('get-projects', async () => {

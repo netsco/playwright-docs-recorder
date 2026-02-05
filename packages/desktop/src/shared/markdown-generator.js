@@ -7,7 +7,7 @@
  * @returns {string} - Markdown content as string
  */
 function generateMarkdown(recording) {
-  const { title, actions } = recording;
+  const { title, actions, separator = '---' } = recording;
   const lines = [];
 
   // YAML front matter if title provided
@@ -26,8 +26,10 @@ function generateMarkdown(recording) {
       if (action.note) {
         lines.push(action.note, '');
       }
-      lines.push(`![${action.filename}](screenshots/${action.filename})`, '');
-      lines.push('---', '');
+      lines.push(`![${action.pageTitle || action.filename}](screenshots/${action.filename})`, '');
+      if (separator) {
+        lines.push(separator, '');
+      }
     }
   }
 

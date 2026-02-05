@@ -366,7 +366,7 @@ function AppContent() {
           });
           dispatch({
             type: 'ADD_SCREENSHOT_PREVIEW',
-            payload: { filename: result.filename, dataUrl, note },
+            payload: { filename: result.filename, dataUrl, note, pageTitle },
           });
         }
       } catch (error) {

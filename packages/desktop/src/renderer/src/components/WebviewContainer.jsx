@@ -17,6 +17,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
   const containerRef = useRef(null);
   const webviewRef = useRef(null);
   const listenersRef = useRef([]);
+  const domReadyRef = useRef(false);
   const api = useElectronAPI();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -76,6 +77,11 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       listenersRef.current.push({ event, handler });
     };
 
+    // Track dom-ready so we know when send() is safe (only needed for initial attach)
+    addListener('dom-ready', () => {
+      domReadyRef.current = true;
+    });
+
     // Loading state handlers
     addListener('did-start-loading', () => {
       setIsLoading(true);
@@ -93,7 +99,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       callbacksRef.current.onLoadingChange?.(false);
 
       const { isRecording: rec, recordActions: ra, customCSS: css } = recordingStateRef.current;
-      if (rec) {
+      if (rec && domReadyRef.current) {
         webview.send('recording-started', { recordActions: ra });
         if (css) {
           webview.send('inject-custom-css', css);
@@ -110,9 +116,11 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       if (rec) {
         // Small delay to let the page initialize
         setTimeout(() => {
-          webview.send('recording-started', { recordActions: ra });
-          if (css) {
-            webview.send('inject-custom-css', css);
+          if (domReadyRef.current) {
+            webview.send('recording-started', { recordActions: ra });
+            if (css) {
+              webview.send('inject-custom-css', css);
+            }
           }
         }, 500);
       }
@@ -179,6 +187,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
         container.removeChild(webview);
       }
       webviewRef.current = null;
+      domReadyRef.current = false;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -195,7 +204,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
   // Notify webview when recording state changes
   useEffect(() => {
     const webview = webviewRef.current;
-    if (!webview) return;
+    if (!webview || !domReadyRef.current) return;
 
     if (isRecording) {
       webview.send('recording-started', { recordActions });
@@ -229,7 +238,9 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
     },
 
     send(channel, ...args) {
-      webviewRef.current?.send(channel, ...args);
+      if (domReadyRef.current) {
+        webviewRef.current?.send(channel, ...args);
+      }
     },
 
     async capturePage() {
@@ -253,6 +264,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
     },
 
     getWebContentsId() {
+      if (!domReadyRef.current) return null;
       return webviewRef.current?.getWebContentsId();
     },
   }));

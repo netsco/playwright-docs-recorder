@@ -126,56 +126,51 @@ export function ShortcutsPanel({
       </div>
 
       <div className="p-3">
-        {/* Stop Recording button */}
-        <Button
-          onClick={onStopRecording}
-          className="mb-3 h-8 w-full gap-2 bg-coral-600 text-xs font-semibold text-white hover:bg-coral-700"
-        >
-          <Square className="h-3 w-3 fill-current" />
-          Stop Recording
-        </Button>
-
-        {/* Action buttons row */}
-        <div className="mb-3 flex gap-1">
+        {/* Stop + action buttons row */}
+        <div className="mb-3 flex items-center gap-1">
           <Button
-            variant="secondary"
-            size="sm"
-            className="h-7 flex-1 gap-1 text-[10px]"
-            onClick={onScreenshot}
-            title="Take screenshot (Ctrl+Shift+S)"
+            onClick={onStopRecording}
+            className="h-7 flex-1 gap-1.5 bg-coral-600 text-xs font-semibold text-white hover:bg-coral-700"
+            title="Stop recording (Ctrl+C)"
           >
-            <Camera className="h-3 w-3" />
-            Shot
+            <Square className="h-3 w-3 fill-current" />
+            Stop
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 flex-1 gap-1 text-[10px]"
+            className="h-7 w-7 shrink-0 p-0"
+            onClick={onScreenshot}
+            title="Screenshot (Ctrl+Shift+S)"
+          >
+            <Camera className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-7 w-7 shrink-0 p-0"
             onClick={onFullPageScreenshot}
             title="Full page screenshot (Ctrl+Shift+F)"
           >
-            <Maximize className="h-3 w-3" />
-            Full
+            <Maximize className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 flex-1 gap-1 text-[10px]"
+            className="h-7 w-7 shrink-0 p-0"
             onClick={onNoteScreenshot}
             title="Screenshot with note (Ctrl+Shift+K)"
           >
-            <StickyNote className="h-3 w-3" />
-            Note
+            <StickyNote className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 flex-1 gap-1 text-[10px]"
+            className="h-7 w-7 shrink-0 p-0"
             onClick={onClearHighlight}
             title="Clear highlight (Ctrl+Shift+X)"
           >
-            <XCircle className="h-3 w-3" />
-            Clear
+            <XCircle className="h-3.5 w-3.5" />
           </Button>
         </div>
 
