@@ -1,5 +1,11 @@
 # @doc-recorder/desktop
 
+## 0.9.3
+
+### Patch Changes
+
+- Fix CI build step for Tailwind v4 Vite plugin migration.
+
 ## 0.9.0
 
 ### Minor Changes
