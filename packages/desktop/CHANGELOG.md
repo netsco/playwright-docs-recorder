@@ -1,5 +1,11 @@
 # @doc-recorder/desktop
 
+## 0.9.4
+
+### Patch Changes
+
+- Fix shortcuts overlay showing on project listing page and recording viewport not using project defaults.
+
 ## 0.9.3
 
 ### Patch Changes
