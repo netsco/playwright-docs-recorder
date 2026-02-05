@@ -1,8 +1,9 @@
 const { autoUpdater } = require('electron-updater');
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
+autoUpdater.forceDevUpdateConfig = !app.isPackaged;
 
 function initAutoUpdater(mainWindow) {
   autoUpdater.on('update-available', (info) => {
