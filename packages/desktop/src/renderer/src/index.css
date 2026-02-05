@@ -107,6 +107,10 @@
   }
 }
 
+/* Titlebar drag regions */
+.titlebar-drag { app-region: drag; -webkit-app-region: drag; }
+.titlebar-no-drag { app-region: no-drag; -webkit-app-region: no-drag; }
+
 /* Base styles */
 body { overflow: hidden; }
 #root { height: 100vh; }

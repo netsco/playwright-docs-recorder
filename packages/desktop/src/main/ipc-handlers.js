@@ -904,6 +904,49 @@ function registerIpcHandlers() {
       title: r.title
     }));
   });
+  // ===== Window Controls =====
+
+  ipcMain.on('window-minimize', () => {
+    const { getMainWindow } = require('./main');
+    const win = getMainWindow();
+    if (win) win.minimize();
+  });
+
+  ipcMain.on('window-maximize', () => {
+    const { getMainWindow } = require('./main');
+    const win = getMainWindow();
+    if (win) {
+      if (win.isMaximized()) {
+        win.unmaximize();
+      } else {
+        win.maximize();
+      }
+    }
+  });
+
+  ipcMain.on('window-close', () => {
+    const { getMainWindow } = require('./main');
+    const win = getMainWindow();
+    if (win) win.close();
+  });
+
+  ipcMain.handle('window-is-maximized', () => {
+    const { getMainWindow } = require('./main');
+    const win = getMainWindow();
+    return win ? win.isMaximized() : false;
+  });
+
+  ipcMain.handle('update-title-bar-overlay', (event, overlayOptions) => {
+    const { getMainWindow } = require('./main');
+    const win = getMainWindow();
+    if (win && win.setTitleBarOverlay && process.platform !== 'darwin') {
+      try {
+        win.setTitleBarOverlay(overlayOptions);
+      } catch {
+        // Ignore errors on platforms that don't support overlay updates
+      }
+    }
+  });
 }
 
 module.exports = { registerIpcHandlers };

@@ -382,7 +382,7 @@ export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
   }, [activeHistoryId, onOpenScreenshotEditor]);
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full w-full flex-col bg-background">
       {/* Header */}
       <div className="flex h-10 shrink-0 items-center border-b border-border px-3">
         <Button

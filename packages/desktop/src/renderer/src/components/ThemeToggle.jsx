@@ -12,6 +12,13 @@ export function ThemeToggle() {
     dispatch({ type: 'SET_THEME', payload: newTheme });
     if (api) {
       await api.saveSettings({ theme: newTheme });
+      if (api.updateTitleBarOverlay) {
+        api.updateTitleBarOverlay({
+          color: '#00000000',
+          symbolColor: newTheme === 'dark' ? '#94a3b8' : '#556275',
+          height: 38
+        });
+      }
     }
   };
 

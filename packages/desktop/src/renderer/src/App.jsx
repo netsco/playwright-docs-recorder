@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { AppProvider, useApp } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
+import { Titlebar } from '@/components/layout/Titlebar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Toolbar } from '@/components/layout/Toolbar';
 import { StatusBar } from '@/components/layout/StatusBar';
@@ -78,6 +79,16 @@ function AppContent() {
         // Apply persisted theme
         if (settings.theme) {
           dispatch({ type: 'SET_THEME', payload: settings.theme });
+        }
+
+        // Sync title bar overlay colors with theme
+        if (api.updateTitleBarOverlay) {
+          const isDark = (settings.theme || 'dark') === 'dark';
+          api.updateTitleBarOverlay({
+            color: '#00000000',
+            symbolColor: isDark ? '#94a3b8' : '#556275',
+            height: 38
+          });
         }
 
         const data = await api.getProjects();
@@ -923,7 +934,16 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col h-full">
+      <Titlebar
+        onNewRecording={() => {
+          if (!confirmDiscardChanges()) return;
+          dispatch({ type: 'SET_VIEW', payload: 'welcome' });
+        }}
+        onImportProject={handleImportProject}
+        onExportProject={handleExportProject}
+      />
+      <div className="flex flex-1 min-h-0">
       {/* Sidebar */}
       {state.sidebarVisible && (
         <Sidebar
@@ -1043,6 +1063,8 @@ function AppContent() {
         {/* Status Bar */}
         <StatusBar />
       </main>
+
+      </div>{/* end flex row */}
 
       {/* Modals */}
       <ProjectModal

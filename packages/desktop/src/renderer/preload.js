@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Platform identifier
+  platform: process.platform,
+
   // App version from package.json
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
@@ -73,6 +76,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onScreenshotTaken: (callback) => {
     ipcRenderer.on('screenshot-taken', (event, data) => callback(data));
   },
+
+  // ===== Window Controls =====
+  windowMinimize: () => ipcRenderer.send('window-minimize'),
+  windowMaximize: () => ipcRenderer.send('window-maximize'),
+  windowClose: () => ipcRenderer.send('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximizedChange: (callback) => {
+    ipcRenderer.on('window-maximized-change', (event, isMaximized) => callback(isMaximized));
+  },
+  updateTitleBarOverlay: (options) => ipcRenderer.invoke('update-title-bar-overlay', options),
 
   // ===== Auto-updater =====
   downloadUpdate: () => ipcRenderer.invoke('download-update'),

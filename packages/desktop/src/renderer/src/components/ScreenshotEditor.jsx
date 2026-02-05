@@ -948,7 +948,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div className="fixed inset-0 top-[38px] z-50 flex flex-col bg-background">
       {/* Toolbar */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">

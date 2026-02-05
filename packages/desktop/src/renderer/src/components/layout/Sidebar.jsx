@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
-  ChevronsLeft,
-  ChevronsRight,
   Plus,
   RotateCw,
   Pencil,
@@ -27,7 +25,7 @@ export function Sidebar({
   onSelectRecording,
   onRecordingAction,
 }) {
-  const { state, dispatch } = useApp();
+  const { state } = useApp();
   const {
     currentProject,
     sidebarCollapsed,
@@ -52,10 +50,6 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleToggleSidebar = () => {
-    dispatch({ type: 'TOGGLE_SIDEBAR' });
-  };
-
   const projectColor = currentProject?.color || '#14b8a6';
   const projectName = currentProject?.name || 'Untitled Project';
 
@@ -63,16 +57,6 @@ export function Sidebar({
   if (sidebarCollapsed) {
     return (
       <div className="flex h-full w-[52px] flex-col items-center border-r border-border bg-card py-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={handleToggleSidebar}
-          title="Expand sidebar"
-        >
-          <ChevronsRight className="h-4 w-4" />
-        </Button>
-
         {/* Project color dot */}
         <div
           className="mt-3 h-6 w-6 rounded-full border-2 border-border text-center text-[8px] font-bold leading-[20px] text-white"
@@ -134,15 +118,6 @@ export function Sidebar({
             title="Edit project"
           >
             <Pencil className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            onClick={handleToggleSidebar}
-            title="Collapse sidebar"
-          >
-            <ChevronsLeft className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>

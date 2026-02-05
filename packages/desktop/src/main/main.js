@@ -10,11 +10,12 @@ function createWindow() {
   const settings = getSettingsStore();
   const windowBounds = settings.get('windowBounds', { width: 1400, height: 900 });
 
-  mainWindow = new BrowserWindow({
+  const windowOptions = {
     width: windowBounds.width,
     height: windowBounds.height,
     x: windowBounds.x,
     y: windowBounds.y,
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
       contextIsolation: true,
@@ -24,7 +25,23 @@ function createWindow() {
     },
     icon: path.join(__dirname, '../../assets/icons/icon.ico'),
     title: 'Documentation Recorder'
-  });
+  };
+
+  // macOS: position native traffic lights
+  if (process.platform === 'darwin') {
+    windowOptions.trafficLightPosition = { x: 12, y: 10 };
+  }
+
+  // Windows/Linux: native window controls overlay
+  if (process.platform !== 'darwin') {
+    windowOptions.titleBarOverlay = {
+      color: '#00000000',
+      symbolColor: '#94a3b8',
+      height: 38
+    };
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   // In production/packaged, load the Vite-built output
   // In development, load the Vite-built output (run `npm run build:renderer` first)
@@ -49,6 +66,14 @@ function createWindow() {
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
   }
+
+  // Notify renderer of maximize state changes (for Linux window controls)
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-maximized-change', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-maximized-change', false);
+  });
 }
 
 // Prevent multiple instances
