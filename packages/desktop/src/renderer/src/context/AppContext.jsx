@@ -15,6 +15,7 @@ const initialState = {
   screenshotCount: 0,
   currentRecordActions: true,
   currentCustomCSS: '',
+  currentViewport: null,
 
   // Settings
   settings: null,
@@ -93,6 +94,7 @@ function appReducer(state, action) {
         isRecording: action.payload.isRecording ?? state.isRecording,
         currentRecordActions: action.payload.recordActions ?? state.currentRecordActions,
         currentCustomCSS: action.payload.customCSS ?? state.currentCustomCSS,
+        currentViewport: action.payload.viewport ?? state.currentViewport,
       };
 
     case 'INCREMENT_ACTION':
@@ -241,6 +243,7 @@ function appReducer(state, action) {
         screenshotCount: 0,
         currentRecordActions: true,
         currentCustomCSS: '',
+        currentViewport: null,
         screenshotPreviews: [],
         logEntries: [],
         statusText: 'Ready',

@@ -46,7 +46,8 @@ export function StatusBar() {
     });
   }, []);
 
-  const rawViewport = settings?.viewport || '1280x720';
+  const { currentViewport } = state;
+  const rawViewport = currentViewport || settings?.viewport || '1280x720';
   const viewport =
     typeof rawViewport === 'object'
       ? `${rawViewport.width}x${rawViewport.height}`

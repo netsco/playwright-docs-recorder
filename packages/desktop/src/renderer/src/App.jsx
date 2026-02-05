@@ -139,6 +139,7 @@ function AppContent() {
   const handleBackToProjects = useCallback(async () => {
     if (!confirmDiscardChanges()) return;
     await api.setLastOpenedProject(null);
+    dispatch({ type: 'RESET_RECORDING_STATE' });
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: null });
     dispatch({ type: 'SET_SIDEBAR_VISIBLE', payload: false });
     dispatch({ type: 'SET_VIEW', payload: 'projectList' });
@@ -218,12 +219,15 @@ function AppContent() {
           });
 
           if (result.success) {
+            // Parse viewport string (e.g. "1680x950") to object
+            const [vw, vh] = viewport.split('x').map(Number);
             dispatch({
               type: 'SET_RECORDING',
               payload: {
                 isRecording: true,
                 recordActions,
                 customCSS: customCSS || '',
+                viewport: { width: vw, height: vh },
               },
             });
             dispatch({
@@ -913,7 +917,7 @@ function AppContent() {
   }, [state.isRecording, handleStopRecording, captureScreenshot, dispatch]);
 
   // ===== Render =====
-  const currentViewport = state.settings?.viewport || {
+  const currentViewport = state.currentViewport || state.settings?.viewport || {
     width: 1680,
     height: 950,
   };
