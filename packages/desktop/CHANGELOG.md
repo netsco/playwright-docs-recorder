@@ -1,5 +1,11 @@
 # @doc-recorder/desktop
 
+## 0.11.0
+
+### Minor Changes
+
+- Add steps editor for editing recorded steps with action replay, per-project auth state persistence, and various bug fixes including highlight saving, refetch reliability, and dialog overlay z-index.
+
 ## 0.10.0
 
 ### Minor Changes
