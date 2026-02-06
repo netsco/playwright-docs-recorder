@@ -29,6 +29,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   importProject: () => ipcRenderer.invoke('import-project'),
   getRefetchQueue: (projectId) => ipcRenderer.invoke('get-refetch-queue', projectId),
 
+  // ===== Auth State =====
+  saveAuthState: (projectId, sourceUrl) => ipcRenderer.invoke('save-auth-state', projectId, sourceUrl),
+  loadAuthState: (projectId) => ipcRenderer.invoke('load-auth-state', projectId),
+  deleteAuthState: (projectId) => ipcRenderer.invoke('delete-auth-state', projectId),
+  getAuthStateInfo: (projectId) => ipcRenderer.invoke('get-auth-state-info', projectId),
+
   // ===== Recording controls =====
   startRecording: (url, options) => ipcRenderer.invoke('start-recording', url, options),
   stopRecording: () => ipcRenderer.invoke('stop-recording'),

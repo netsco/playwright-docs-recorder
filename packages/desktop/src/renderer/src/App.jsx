@@ -44,6 +44,7 @@ function AppContent() {
   const { state, dispatch } = useApp();
   const api = useElectronAPI();
   const webviewRef = useRef(null);
+  const loginRequiredRef = useRef(false);
   const [pendingScreenshot, setPendingScreenshot] = useState(null);
   const [currentUrl, setCurrentUrl] = useState('');
   const [screenshotEditorConfig, setScreenshotEditorConfig] = useState(null);
@@ -198,15 +199,30 @@ function AppContent() {
         viewport,
         separator,
         recordActions,
+        loginRequired,
         customCSS,
         settingsOverride,
       } = config;
+
+      loginRequiredRef.current = loginRequired;
 
       dispatch({ type: 'SET_VIEW', payload: 'recording' });
 
       // Navigate webview
       const fullUrl = url.startsWith('http') ? url : 'https://' + url;
       setCurrentUrl(fullUrl);
+
+      // Load saved auth state before navigation
+      if (loginRequired && state.currentProjectId) {
+        try {
+          const authResult = await api.loadAuthState(state.currentProjectId);
+          if (authResult.success) {
+            dispatch({ type: 'SET_STATUS', payload: `Loaded saved session (${authResult.cookieCount} cookies)` });
+          }
+        } catch {
+          // No auth state yet — will auto-save on stop
+        }
+      }
 
       // Wait for webview to be ready, then navigate
       setTimeout(async () => {
@@ -224,6 +240,7 @@ function AppContent() {
             viewport,
             separator,
             recordActions,
+            loginRequired,
             customCSS: customCSS || '',
             injectCSS: !!customCSS,
             settingsOverride: settingsOverride || {},
@@ -300,6 +317,18 @@ function AppContent() {
           payload: `Saved: ${result.recording.actionCount} actions, ${result.recording.screenshotCount} screenshots`,
         });
 
+        // Auto-save auth state if login was required
+        if (loginRequiredRef.current && state.currentProjectId) {
+          try {
+            const saveResult = await api.saveAuthState(state.currentProjectId, currentUrl);
+            if (saveResult.success) {
+              dispatch({ type: 'ADD_LOG_ENTRY', payload: { message: `Session saved (${saveResult.cookieCount} cookies)`, type: 'info' } });
+            }
+          } catch {
+            // Non-critical — auth save failure shouldn't block recording save
+          }
+        }
+
         const recordings = await api.getProjectRecordings(
           state.currentProjectId
         );
@@ -321,7 +350,7 @@ function AppContent() {
       });
       dispatch({ type: 'SET_VIEW', payload: 'welcome' });
     }
-  }, [api, state.currentProjectId, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, state.currentProjectId, currentUrl, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== Screenshots =====
   const captureScreenshot = useCallback(
@@ -609,6 +638,18 @@ function AppContent() {
 
       const wv = webviewRef.current;
       if (!wv) return;
+
+      // Load auth state if the recording requires login
+      if (recording.loginRequired && state.currentProjectId) {
+        try {
+          const authResult = await api.loadAuthState(state.currentProjectId);
+          if (authResult.success) {
+            dispatch({ type: 'SET_STATUS', payload: 'Loaded saved session for refetch' });
+          }
+        } catch {
+          // No auth state — continue without it
+        }
+      }
 
       // Navigate to first goto
       const firstGoto = relevantActions.find((a) => a.type === 'goto');

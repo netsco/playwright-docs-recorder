@@ -27,6 +27,7 @@ const {
   exportProjectAsZip,
   importProjectFromZip
 } = require('./project-manager');
+const { saveAuthState, loadAuthState, deleteAuthState, getAuthStateInfo } = require('./auth-manager');
 
 // Current recording state
 let currentRecording = null;
@@ -223,6 +224,7 @@ function registerIpcHandlers() {
       url: url,
       viewport: viewport,
       recordActions: options.recordActions !== false, // default true
+      loginRequired: options.loginRequired !== false, // default true
       injectCSS: injectCSS,
       customCSS: customCSS || null,
       settingsOverride: options.settingsOverride || {},
@@ -904,6 +906,44 @@ function registerIpcHandlers() {
       title: r.title
     }));
   });
+  // ===== Auth State =====
+
+  ipcMain.handle('save-auth-state', async (event, projectId, sourceUrl) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const project = getProject(outputDir, projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+    const projectFolder = getProjectFolderPath(outputDir, project);
+    return saveAuthState(projectFolder, sourceUrl);
+  });
+
+  ipcMain.handle('load-auth-state', async (event, projectId) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const project = getProject(outputDir, projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+    const projectFolder = getProjectFolderPath(outputDir, project);
+    return loadAuthState(projectFolder);
+  });
+
+  ipcMain.handle('delete-auth-state', async (event, projectId) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const project = getProject(outputDir, projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+    const projectFolder = getProjectFolderPath(outputDir, project);
+    return deleteAuthState(projectFolder);
+  });
+
+  ipcMain.handle('get-auth-state-info', async (event, projectId) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+    const project = getProject(outputDir, projectId);
+    if (!project) return { exists: false };
+    const projectFolder = getProjectFolderPath(outputDir, project);
+    return getAuthStateInfo(projectFolder);
+  });
+
   // ===== Window Controls =====
 
   ipcMain.on('window-minimize', () => {

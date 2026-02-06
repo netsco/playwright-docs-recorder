@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Video, ChevronDown, ChevronRight, Upload } from 'lucide-react';
+import { Video, ChevronDown, ChevronRight, Upload, Lock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -48,6 +48,8 @@ export function WelcomePanel({ onStartRecording }) {
   const [url, setUrl] = useState(project?.settings?.siteUrl || '');
   const [title, setTitle] = useState('');
   const [recordActions, setRecordActions] = useState(true);
+  const [loginRequired, setLoginRequired] = useState(true);
+  const [authInfo, setAuthInfo] = useState(null);
   const [useCustomSettings, setUseCustomSettings] = useState(false);
   const [showDefaults, setShowDefaults] = useState(false);
 
@@ -79,6 +81,15 @@ export function WelcomePanel({ onStartRecording }) {
   useEffect(() => {
     urlInputRef.current?.focus();
   }, []);
+
+  // Fetch auth state info for current project
+  useEffect(() => {
+    if (!api || !project?.id) {
+      setAuthInfo(null);
+      return;
+    }
+    api.getAuthStateInfo(project.id).then(setAuthInfo).catch(() => setAuthInfo(null));
+  }, [api, project?.id]);
 
   // Sync custom width/height when preset changes
   useEffect(() => {
@@ -121,6 +132,7 @@ export function WelcomePanel({ onStartRecording }) {
       viewport,
       separator,
       recordActions,
+      loginRequired,
       customCSS: useCSS ? customCSS : '',
       useCustomSettings,
     });
@@ -236,6 +248,59 @@ export function WelcomePanel({ onStartRecording }) {
               <p className="mt-1.5 ml-6.5 text-xs text-amber-400/80">
                 Avoid entering credentials while recording actions.
               </p>
+            )}
+          </div>
+
+          {/* Login Required Checkbox */}
+          <div className="mb-5">
+            <div className="flex items-center gap-2.5">
+              <Checkbox
+                id="rec-login"
+                checked={loginRequired}
+                onCheckedChange={(checked) => setLoginRequired(checked === true)}
+              />
+              <Label htmlFor="rec-login" className="cursor-pointer">
+                Login required
+              </Label>
+            </div>
+            {loginRequired && (
+              <div className="mt-2 ml-6.5">
+                {authInfo?.exists ? (
+                  <>
+                    <div className="rounded-md border border-border/50 bg-card/50 p-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <Lock className="h-3.5 w-3.5 text-green-400" />
+                        Saved session available
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">
+                          {authInfo.savedAt && `Saved ${new Date(authInfo.savedAt).toLocaleDateString()}`}
+                          {authInfo.cookieCount != null && ` · ${authInfo.cookieCount} cookies`}
+                          {authInfo.sourceUrl && ` · ${new URL(authInfo.sourceUrl).hostname}`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const result = await api.deleteAuthState(project.id);
+                            if (result.success) setAuthInfo({ exists: false });
+                          }}
+                          className="text-muted-foreground hover:text-red-400 transition-colors"
+                          title="Delete saved session"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Cookies will be loaded automatically.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Login during recording — session will be saved automatically on stop.
+                  </p>
+                )}
+              </div>
             )}
           </div>
 

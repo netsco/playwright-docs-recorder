@@ -568,6 +568,7 @@ function exportProjectAsZip(outputDir, projectId, destZipPath) {
 function addFolderToZip(zip, folderPath, zipPrefix) {
   const entries = fs.readdirSync(folderPath);
   for (const entry of entries) {
+    if (entry === 'auth-state.enc') continue;
     const fullPath = path.join(folderPath, entry);
     const zipPath = zipPrefix ? `${zipPrefix}/${entry}` : entry;
     const stat = fs.statSync(fullPath);
