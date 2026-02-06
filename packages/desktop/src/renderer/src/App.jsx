@@ -17,6 +17,7 @@ import NoteModal from '@/components/modals/NoteModal';
 import TextInputModal from '@/components/modals/TextInputModal';
 
 import { ShortcutsPanel } from '@/components/ShortcutsPanel';
+import { StepsEditor } from '@/components/StepsEditor';
 import { ScreenshotEditor } from '@/components/ScreenshotEditor';
 
 function formatActionMessage(action) {
@@ -49,15 +50,26 @@ function AppContent() {
   const [currentUrl, setCurrentUrl] = useState('');
   const [screenshotEditorConfig, setScreenshotEditorConfig] = useState(null);
   const [textInputConfig, setTextInputConfig] = useState(null);
+  const [selectedStepRealIndex, setSelectedStepRealIndex] = useState(-1);
+  const [stepsHighlight, setStepsHighlight] = useState(null);
+  const currentHighlightRef = useRef(null);
+  const pendingStepNoteIndexRef = useRef(-1);
 
   const hasUnsavedEditorChanges =
     state.currentView === 'editor' &&
     state.editorContent !== state.editorOriginalContent;
 
+  const hasUnsavedStepsChanges =
+    state.isEditingSteps &&
+    JSON.stringify(state.stepsActions) !== JSON.stringify(state.stepsOriginalActions);
+
   const confirmDiscardChanges = useCallback(() => {
+    if (hasUnsavedStepsChanges) {
+      return confirm('You have unsaved step changes. Discard and leave?');
+    }
     if (!hasUnsavedEditorChanges) return true;
     return confirm('You have unsaved changes. Discard and leave?');
-  }, [hasUnsavedEditorChanges]);
+  }, [hasUnsavedEditorChanges, hasUnsavedStepsChanges]);
 
   // ===== Theme =====
   useEffect(() => {
@@ -206,6 +218,7 @@ function AppContent() {
 
       loginRequiredRef.current = loginRequired;
 
+      dispatch({ type: 'SET_EDITING_STEPS', payload: false });
       dispatch({ type: 'SET_VIEW', payload: 'recording' });
 
       // Navigate webview
@@ -359,9 +372,12 @@ function AppContent() {
         const wv = webviewRef.current;
         if (!wv) return;
 
+        // Use the tracked highlight as fallback when no explicit selector is passed
+        const effectiveSelector = selector || currentHighlightRef.current || null;
+
         // Capture highlight overlay rect before hiding it
         let highlightOverlay = null;
-        if (selector) {
+        if (effectiveSelector) {
           try {
             highlightOverlay = await wv.executeJavaScript(
               `(function(){const o=document.getElementById('__highlight-overlay');if(!o||o.style.display==='none')return null;const r=o.getBoundingClientRect();if(r.width===0||r.height===0)return null;return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),borderRadius:4};})()`
@@ -394,11 +410,11 @@ function AppContent() {
         const pageTitle = await wv.executeJavaScript('document.title').catch(() => '');
 
         const result = await api.captureScreenshot({
-          selector,
+          selector: effectiveSelector,
           note,
           fullPage,
           imageDataUrl: dataUrl,
-          highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector } : undefined,
+          highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector: effectiveSelector } : undefined,
           pageTitle,
         });
 
@@ -580,6 +596,10 @@ function AppContent() {
           dispatch({ type: 'OPEN_MOVE_MODAL', payload: recordingId });
           break;
 
+        case 'editSteps':
+          await openStepsEditor(recordingId);
+          break;
+
         case 'delete':
           if (confirm('Delete this recording?')) {
             await api.deleteRecording(recordingId, state.currentProjectId);
@@ -595,6 +615,482 @@ function AppContent() {
       }
     },
     [api, state.currentProjectId, state.activeHistoryId, dispatch] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // ===== Steps Editor =====
+  // Selector resolver + fill helper injected into webview JS.
+  // Handles Playwright text selectors, IDs with dots, and standard CSS selectors.
+  // All code wrapped in try/catch to avoid GUEST_VIEW_MANAGER_CALL errors when
+  // a click triggers page navigation and the execution context is destroyed.
+  const resolverJS = [
+    'function __resolve(s){',
+    'try{',
+    'if(s.indexOf(":text(")!==-1){',
+    'var m=s.match(/:text\\("([^"]+)"\\)/);',
+    'if(!m)return null;',
+    'var t=m[1],tm=s.match(/^(\\w+):/),tag=tm?tm[1]:"*",els=document.querySelectorAll(tag);',
+    'for(var i=0;i<els.length;i++)if(els[i].textContent&&els[i].textContent.trim().indexOf(t)!==-1)return els[i];',
+    'return null;}',
+    'var el;try{el=document.querySelector(s)}catch(x){}',
+    'if(el)return el;',
+    'if(s.charAt(0)==="#")return document.getElementById(s.substring(1));',
+    'return null;',
+    '}catch(e){return null;}}',
+  ].join('');
+
+  const fillJS = [
+    'function __fill(el,v){',
+    'try{el.focus();}catch(e){}',
+    'try{',
+    'var p=Object.getOwnPropertyDescriptor(',
+    'el.tagName==="TEXTAREA"?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,"value");',
+    'if(p&&p.set){p.set.call(el,v);}else{el.value=v;}',
+    '}catch(e){el.value=v;}',
+    'try{el.dispatchEvent(new Event("input",{bubbles:true}));',
+    'el.dispatchEvent(new Event("change",{bubbles:true}));}catch(e){}}',
+  ].join('');
+
+  const replayToAction = useCallback(
+    async (actions, targetRealIndex) => {
+      const wv = webviewRef.current;
+      if (!wv?.isReady?.()) return;
+
+      // Hide any existing highlight overlay before replaying
+      if (wv.isDomReady?.()) {
+        try {
+          await wv.executeJavaScript(
+            `(function(){var o=document.getElementById('__highlight-overlay');if(o)o.style.display='none';})()`
+          );
+        } catch {}
+      }
+
+      // Check if any goto action exists before the target
+      const hasGoto = actions.slice(0, targetRealIndex + 1).some((a) => a.type === 'goto');
+
+      // Get the current webview URL to avoid redundant navigation (which causes ERR_ABORTED)
+      const currentSrc = wv.src || '';
+
+      // If no goto actions, navigate to the recording URL to reset page state
+      if (!hasGoto && state.stepsRecordingUrl) {
+        const targetUrl = state.stepsRecordingUrl.startsWith('http')
+          ? state.stepsRecordingUrl
+          : `https://${state.stepsRecordingUrl}`;
+        // Skip if already on this page (e.g. WebviewContainer loaded it via initialUrl)
+        if (!currentSrc.startsWith(targetUrl)) {
+          await wv.navigateAndWait(state.stepsRecordingUrl);
+        }
+      }
+
+      // Replay all actions up to and including the target
+      for (let i = 0; i <= targetRealIndex && i < actions.length; i++) {
+        const action = actions[i];
+        if (action.type === 'goto') {
+          const gotoUrl = action.url.startsWith('http') ? action.url : `https://${action.url}`;
+          // Skip navigation if the webview is already at this URL
+          if (currentSrc.startsWith(gotoUrl)) continue;
+          await wv.navigateAndWait(action.url);
+        } else if (action.type === 'click' && action.selector) {
+          if (!wv.isDomReady()) continue;
+          try {
+            await wv.executeJavaScript(
+              `(function(){try{${resolverJS}var el=__resolve(${JSON.stringify(action.selector)});if(el){el.click();}}catch(e){}})()`
+            );
+          } catch {
+            // Click may have triggered navigation (context destroyed)
+          }
+          // Wait for any navigation the click may have triggered
+          await new Promise((r) => setTimeout(r, 300));
+          await wv.waitForIdle();
+          // Small extra delay for JS frameworks to render after load
+          await new Promise((r) => setTimeout(r, 300));
+        } else if (action.type === 'fill' && action.selector) {
+          if (!wv.isDomReady()) continue;
+          try {
+            await wv.executeJavaScript(
+              `(function(){try{${resolverJS}${fillJS}var el=__resolve(${JSON.stringify(action.selector)});if(el)__fill(el,${JSON.stringify(action.value || '')});}catch(e){}})()`
+            );
+          } catch {
+            // Ignore fill errors
+          }
+          await new Promise((r) => setTimeout(r, 200));
+        } else if (action.type === 'scroll') {
+          if (!wv.isDomReady()) continue;
+          try {
+            await wv.executeJavaScript(
+              `try{window.scrollTo(${action.scrollX || 0}, ${action.scrollY || 0})}catch(e){}`
+            );
+          } catch {
+            // Ignore scroll errors
+          }
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
+    },
+    [state.stepsRecordingUrl, resolverJS, fillJS]
+  );
+
+  // Poll until the webview DOM element exists AND dom-ready has fired (page loaded)
+  const waitForWebviewLoaded = useCallback(() => {
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const check = () => {
+        attempts++;
+        if (webviewRef.current?.isDomReady?.()) {
+          resolve(webviewRef.current);
+        } else if (attempts < 150) { // 150 * 200ms = 30s max
+          setTimeout(check, 200);
+        } else {
+          resolve(webviewRef.current || null);
+        }
+      };
+      check();
+    });
+  }, []);
+
+  // Poll until the webview element exists (no page load required)
+  const waitForWebviewReady = useCallback(() => {
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const check = () => {
+        attempts++;
+        if (webviewRef.current?.isReady?.()) {
+          resolve(webviewRef.current);
+        } else if (attempts < 100) { // 100 * 100ms = 10s max
+          setTimeout(check, 100);
+        } else {
+          resolve(null);
+        }
+      };
+      check();
+    });
+  }, []);
+
+  const showStepHighlight = useCallback(
+    async (action) => {
+      const wv = webviewRef.current;
+      if (!wv?.isDomReady?.()) return;
+      const selector = action?.highlight || null;
+      if (!selector) {
+        // Clear any existing highlight
+        try {
+          await wv.executeJavaScript(
+            `(function(){var o=document.getElementById('__highlight-overlay');if(o)o.style.display='none';})()`
+          );
+        } catch {}
+        return;
+      }
+
+      // Retry loop: wait for page layout to settle and overlay element to exist
+      const highlightJS = `(function(){try{${resolverJS}var el=__resolve(${JSON.stringify(selector)});if(!el)return 'no-element';var o=document.getElementById('__highlight-overlay');if(!o)return 'no-overlay';var r=el.getBoundingClientRect();if(r.width===0&&r.height===0)return 'no-rect';o.style.display='block';o.style.top=(r.top-3)+'px';o.style.left=(r.left-3)+'px';o.style.width=(r.width+6)+'px';o.style.height=(r.height+6)+'px';return 'ok';}catch(e){return 'error';}})()`;
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((r) => setTimeout(r, attempt === 0 ? 800 : 500));
+        try {
+          const result = await wv.executeJavaScript(highlightJS);
+          if (result === 'ok') return;
+          // Element or overlay not ready yet, retry
+        } catch {
+          // Page context may have been destroyed, retry
+        }
+      }
+    },
+    [resolverJS]
+  );
+
+  const openStepsEditor = useCallback(
+    async (recordingId) => {
+      if (!confirmDiscardChanges()) return;
+
+      try {
+        const recording = await api.loadRecording(recordingId, state.currentProjectId);
+        if (!recording?.actions) {
+          dispatch({ type: 'SET_STATUS', payload: 'Invalid recording data' });
+          return;
+        }
+
+        const mdResult = await api.getRecordingMarkdown(recordingId, state.currentProjectId);
+        const recordingDir = mdResult?.recordingDir || '';
+
+        // Set viewport from recording before switching view so WebviewContainer gets correct size
+        if (recording.viewport) {
+          const vp = typeof recording.viewport === 'string'
+            ? (() => { const [w, h] = recording.viewport.split('x').map(Number); return { width: w, height: h }; })()
+            : recording.viewport;
+          dispatch({
+            type: 'SET_RECORDING',
+            payload: { viewport: vp },
+          });
+        }
+
+        // Get URL from sidebar recordings list (project metadata stores it)
+        const recMeta = state.recordings.find((r) => r.id === recordingId);
+        const recordingUrl = recMeta?.url || '';
+
+        // Load auth state BEFORE switching view so cookies are available when webview navigates
+        if (recording.loginRequired && state.currentProjectId) {
+          try {
+            await api.loadAuthState(state.currentProjectId);
+          } catch {
+            // No auth state
+          }
+        }
+
+        dispatch({
+          type: 'SET_STEPS_DATA',
+          payload: {
+            actions: recording.actions,
+            recordingId,
+            recordingDir,
+            recordingUrl,
+          },
+        });
+        dispatch({ type: 'SET_ACTIVE_HISTORY', payload: recordingId });
+        dispatch({ type: 'SET_VIEW', payload: 'recording' });
+        dispatch({ type: 'SET_EDITING_STEPS', payload: true });
+        dispatch({ type: 'SET_STEPS_REPLAYING', payload: true });
+        dispatch({ type: 'SET_STATUS', payload: 'Loading page...' });
+
+        // WebviewContainer will mount with initialUrl={stepsRecordingUrl} and start loading
+        // automatically. Wait for the page to finish loading (dom-ready).
+        const wv = await waitForWebviewLoaded();
+        if (wv) {
+          // Find first screenshot step and replay to it
+          const firstScreenshotIdx = recording.actions.findIndex(
+            (a) => a.type === 'screenshot' || a.type === 'note'
+          );
+          if (firstScreenshotIdx >= 0) {
+            setSelectedStepRealIndex(firstScreenshotIdx);
+            dispatch({ type: 'SET_STATUS', payload: 'Replaying actions...' });
+            await replayToAction(recording.actions, firstScreenshotIdx);
+            await showStepHighlight(recording.actions[firstScreenshotIdx]);
+          }
+          dispatch({ type: 'SET_STATUS', payload: 'Editing steps' });
+        }
+        dispatch({ type: 'SET_STEPS_REPLAYING', payload: false });
+      } catch (err) {
+        dispatch({
+          type: 'SET_STATUS',
+          payload: `Error opening steps editor: ${err.message}`,
+        });
+      }
+    },
+    [api, state.currentProjectId, state.recordings, confirmDiscardChanges, dispatch, replayToAction, showStepHighlight, waitForWebviewLoaded]
+  );
+
+  const handleSelectStep = useCallback(
+    async (realIndex) => {
+      setSelectedStepRealIndex(realIndex);
+      // Clear any user-applied highlight (Ctrl+Click) from previous step
+      setStepsHighlight(null);
+      dispatch({ type: 'SET_STEPS_REPLAYING', payload: true });
+      try {
+        await replayToAction(state.stepsActions, realIndex);
+        // Show saved highlight overlay if the step has one
+        await showStepHighlight(state.stepsActions[realIndex]);
+      } finally {
+        dispatch({ type: 'SET_STEPS_REPLAYING', payload: false });
+      }
+    },
+    [state.stepsActions, replayToAction, showStepHighlight, dispatch]
+  );
+
+  const handleSaveSteps = useCallback(async () => {
+    try {
+      const result = await api.updateRecordingActions(
+        state.stepsRecordingId,
+        state.stepsActions,
+        state.currentProjectId
+      );
+      if (result.success) {
+        dispatch({ type: 'SET_EDITING_STEPS', payload: false });
+        dispatch({ type: 'SET_STATUS', payload: 'Steps saved' });
+
+        // Refresh recordings list
+        const recordings = await api.getProjectRecordings(state.currentProjectId);
+        dispatch({ type: 'SET_RECORDINGS', payload: recordings || [] });
+
+        // Open the editor for this recording
+        await openEditor(state.stepsRecordingId);
+      } else {
+        dispatch({ type: 'SET_STATUS', payload: `Save error: ${result.error}` });
+      }
+    } catch (err) {
+      dispatch({ type: 'SET_STATUS', payload: `Save error: ${err.message}` });
+    }
+  }, [api, state.stepsRecordingId, state.stepsActions, state.currentProjectId, dispatch, openEditor]);
+
+  const handleCancelStepsEditor = useCallback(() => {
+    dispatch({ type: 'SET_EDITING_STEPS', payload: false });
+    dispatch({ type: 'SET_VIEW', payload: 'welcome' });
+    dispatch({ type: 'SET_STATUS', payload: 'Ready' });
+  }, [dispatch]);
+
+  const handleEditStepNote = useCallback(
+    (realIndex, currentNote) => {
+      pendingStepNoteIndexRef.current = realIndex;
+      dispatch({
+        type: 'OPEN_NOTE_MODAL',
+        payload: {
+          title: 'Edit Step Note',
+          withScreenshot: false,
+          initialNote: currentNote,
+        },
+      });
+    },
+    [dispatch]
+  );
+
+  const handleCaptureStepScreenshot = useCallback(
+    async (insertAfterRealIndex) => {
+      const wv = webviewRef.current;
+      if (!wv?.isDomReady?.()) {
+        dispatch({ type: 'SET_STATUS', payload: 'Page not loaded yet' });
+        return;
+      }
+
+      try {
+        // Capture highlight overlay rect before hiding it
+        let highlightOverlay = null;
+        if (stepsHighlight) {
+          try {
+            highlightOverlay = await wv.executeJavaScript(
+              `(function(){const o=document.getElementById('__highlight-overlay');if(!o||o.style.display==='none')return null;const r=o.getBoundingClientRect();if(r.width===0||r.height===0)return null;return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),borderRadius:4};})()`
+            );
+          } catch {
+            // Ignore errors reading overlay rect
+          }
+        }
+
+        // Hide scrollbars and highlight overlay during capture
+        await wv.executeJavaScript(
+          `(function(){const s=document.createElement('style');s.id='__doc-recorder-hide-scrollbars';s.textContent='*::-webkit-scrollbar{display:none!important}*{scrollbar-width:none!important;-ms-overflow-style:none!important}';document.head.appendChild(s);const o=document.getElementById('__highlight-overlay');if(o)o.style.display='none';})()`
+        );
+
+        const image = await wv.capturePage();
+        const dataUrl = image.toDataURL();
+
+        // Restore scrollbars and highlight overlay
+        await wv.executeJavaScript(
+          `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
+        ).catch(() => {});
+
+        const pageTitle = await wv.executeJavaScript('document.title').catch(() => '');
+
+        const result = await api.captureStepScreenshot({
+          recordingId: state.stepsRecordingId,
+          imageDataUrl: dataUrl,
+          projectId: state.currentProjectId,
+        });
+
+        if (result.success) {
+          // Bake highlight overlay onto saved screenshot
+          if (highlightOverlay) {
+            await api.saveRefetchedScreenshot({
+              recordingId: state.stepsRecordingId,
+              filename: result.filename,
+              imageDataUrl: dataUrl,
+              highlightOverlay: { ...highlightOverlay, selector: stepsHighlight },
+              projectId: state.currentProjectId,
+            });
+          }
+
+          // Insert new screenshot action after the target index
+          const newAction = {
+            type: 'screenshot',
+            filename: result.filename,
+            highlight: stepsHighlight || null,
+            highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector: stepsHighlight } : undefined,
+            note: null,
+            fullPage: false,
+            pageTitle,
+          };
+          const updated = [...state.stepsActions];
+          updated.splice(insertAfterRealIndex + 1, 0, newAction);
+          dispatch({ type: 'SET_STEPS_ACTIONS', payload: updated });
+          // Select the new step
+          setSelectedStepRealIndex(insertAfterRealIndex + 1);
+          dispatch({ type: 'SET_STATUS', payload: `Inserted: ${result.filename}` });
+        }
+      } catch (err) {
+        // Restore scrollbars and highlight overlay on error
+        webviewRef.current?.executeJavaScript(
+          `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
+        ).catch(() => {});
+        dispatch({ type: 'SET_STATUS', payload: `Screenshot error: ${err.message}` });
+      }
+    },
+    [api, state.stepsRecordingId, state.stepsActions, state.currentProjectId, stepsHighlight, dispatch]
+  );
+
+  const handleRetakeStepScreenshot = useCallback(
+    async (realIndex) => {
+      const wv = webviewRef.current;
+      if (!wv?.isDomReady?.()) {
+        dispatch({ type: 'SET_STATUS', payload: 'Page not loaded yet' });
+        return;
+      }
+
+      const action = state.stepsActions[realIndex];
+      if (!action || action.type !== 'screenshot') return;
+
+      try {
+        // Capture highlight overlay rect before hiding it
+        let highlightOverlay = null;
+        const selector = stepsHighlight || action.highlight || null;
+        if (selector) {
+          try {
+            highlightOverlay = await wv.executeJavaScript(
+              `(function(){const o=document.getElementById('__highlight-overlay');if(!o||o.style.display==='none')return null;const r=o.getBoundingClientRect();if(r.width===0||r.height===0)return null;return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),borderRadius:4};})()`
+            );
+          } catch {
+            // Ignore errors reading overlay rect
+          }
+        }
+
+        // Hide scrollbars and highlight overlay during capture
+        await wv.executeJavaScript(
+          `(function(){const s=document.createElement('style');s.id='__doc-recorder-hide-scrollbars';s.textContent='*::-webkit-scrollbar{display:none!important}*{scrollbar-width:none!important;-ms-overflow-style:none!important}';document.head.appendChild(s);const o=document.getElementById('__highlight-overlay');if(o)o.style.display='none';})()`
+        );
+
+        const image = await wv.capturePage();
+        const dataUrl = image.toDataURL();
+
+        // Restore scrollbars and highlight overlay
+        await wv.executeJavaScript(
+          `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
+        ).catch(() => {});
+
+        // Save over the existing filename (with highlight overlay if present)
+        await api.saveRefetchedScreenshot({
+          recordingId: state.stepsRecordingId,
+          filename: action.filename,
+          imageDataUrl: dataUrl,
+          highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector } : undefined,
+          projectId: state.currentProjectId,
+        });
+
+        // Update the action's highlight data in stepsActions
+        if (highlightOverlay || selector) {
+          const updated = state.stepsActions.map((a, i) => {
+            if (i !== realIndex) return a;
+            return {
+              ...a,
+              highlight: selector,
+              highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector } : undefined,
+            };
+          });
+          dispatch({ type: 'SET_STEPS_ACTIONS', payload: updated });
+        }
+
+        dispatch({ type: 'SET_STATUS', payload: `Retaken: ${action.filename}` });
+      } catch (err) {
+        webviewRef.current?.executeJavaScript(
+          `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
+        ).catch(() => {});
+        dispatch({ type: 'SET_STATUS', payload: `Retake error: ${err.message}` });
+      }
+    },
+    [api, state.stepsRecordingId, state.stepsActions, state.currentProjectId, stepsHighlight, dispatch]
   );
 
   // ===== Refetch =====
@@ -633,97 +1129,125 @@ function AppContent() {
         });
       }
 
-      // Show webview for refetch
-      dispatch({ type: 'SET_VIEW', payload: 'recording' });
+      try {
+        // Set recording viewport so the webview renders at the correct size
+        const vp = typeof recViewport === 'string'
+          ? (() => { const [w, h] = recViewport.split('x').map(Number); return { width: w, height: h }; })()
+          : recViewport;
+        dispatch({ type: 'SET_RECORDING', payload: { viewport: vp } });
 
-      const wv = webviewRef.current;
-      if (!wv) return;
+        // Show webview for refetch
+        dispatch({ type: 'SET_VIEW', payload: 'recording' });
 
-      // Load auth state if the recording requires login
-      if (recording.loginRequired && state.currentProjectId) {
-        try {
-          const authResult = await api.loadAuthState(state.currentProjectId);
-          if (authResult.success) {
-            dispatch({ type: 'SET_STATUS', payload: 'Loaded saved session for refetch' });
+        // Wait for webview element to exist (it mounts asynchronously after view change)
+        const wv = await waitForWebviewReady();
+        if (!wv) throw new Error('Webview failed to initialize');
+
+        // Load auth state if the recording requires login
+        if (recording.loginRequired && state.currentProjectId) {
+          try {
+            const authResult = await api.loadAuthState(state.currentProjectId);
+            if (authResult.success) {
+              dispatch({ type: 'SET_STATUS', payload: 'Loaded saved session for refetch' });
+            }
+          } catch {
+            // No auth state — continue without it
           }
-        } catch {
-          // No auth state — continue without it
         }
-      }
 
-      // Navigate to first goto
-      const firstGoto = relevantActions.find((a) => a.type === 'goto');
-      if (firstGoto) {
-        wv.navigate(firstGoto.url);
-        await new Promise((r) => setTimeout(r, 2000));
-      }
+        // Navigate to first goto
+        const firstGoto = relevantActions.find((a) => a.type === 'goto');
+        if (firstGoto) {
+          await wv.navigateAndWait(firstGoto.url);
+        }
 
-      let ssCount = 0;
-      const actionsToProcess = firstGoto
-        ? relevantActions.filter((a) => a !== firstGoto)
-        : relevantActions;
+        let ssCount = 0;
+        const actionsToProcess = firstGoto
+          ? relevantActions.filter((a) => a !== firstGoto)
+          : relevantActions;
 
-      for (const action of actionsToProcess) {
-        if (action.type === 'goto') {
-          wv.navigate(action.url);
-          await new Promise((r) => setTimeout(r, 1500));
-        } else if (action.type === 'screenshot') {
-          // Resolve highlight element rect if present (for non-destructive overlay)
-          let highlightOverlay = action.highlightOverlay || null;
-          if (action.highlight && !highlightOverlay) {
-            try {
-              highlightOverlay = await wv.executeJavaScript(
-                `(function(){const sel=${JSON.stringify(action.highlight)};let el;if(sel.includes(':text(')){const m=sel.match(/:text\\("([^"]+)"\\)/);if(m){const t=m[1];const tm=sel.match(/^(\\w+):/);const tag=tm?tm[1]:'*';el=Array.from(document.querySelectorAll(tag)).find(e=>e.textContent&&e.textContent.trim().includes(t));}}else{el=document.querySelector(sel);}if(!el)return null;const r=el.getBoundingClientRect();if(r.width===0||r.height===0)return null;const cs=window.getComputedStyle(el);return{x:Math.round(r.x-3),y:Math.round(r.y-3),width:Math.round(r.width+6),height:Math.round(r.height+6),borderRadius:Math.round(parseFloat(cs.borderRadius)||4)};})()`
-              );
-            } catch {
-              // Ignore errors resolving highlight rect
+        for (const action of actionsToProcess) {
+          if (action.type === 'goto') {
+            await wv.navigateAndWait(action.url);
+          } else if (action.type === 'screenshot') {
+            // Resolve highlight element rect if present (for non-destructive overlay)
+            let highlightOverlay = action.highlightOverlay || null;
+            if (action.highlight && !highlightOverlay) {
+              try {
+                highlightOverlay = await wv.executeJavaScript(
+                  `(function(){const sel=${JSON.stringify(action.highlight)};let el;if(sel.includes(':text(')){const m=sel.match(/:text\\("([^"]+)"\\)/);if(m){const t=m[1];const tm=sel.match(/^(\\w+):/);const tag=tm?tm[1]:'*';el=Array.from(document.querySelectorAll(tag)).find(e=>e.textContent&&e.textContent.trim().includes(t));}}else{el=document.querySelector(sel);}if(!el)return null;const r=el.getBoundingClientRect();if(r.width===0||r.height===0)return null;const cs=window.getComputedStyle(el);return{x:Math.round(r.x-3),y:Math.round(r.y-3),width:Math.round(r.width+6),height:Math.round(r.height+6),borderRadius:Math.round(parseFloat(cs.borderRadius)||4)};})()`
+                );
+              } catch {
+                // Ignore errors resolving highlight rect
+              }
+            }
+
+            // Capture clean screenshot (no highlight overlay in page)
+            const image = await wv.capturePage();
+            if (!image) continue; // Skip if capture failed
+            await api.saveRefetchedScreenshot({
+              recordingId,
+              filename: action.filename,
+              imageDataUrl: image.toDataURL(),
+              highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector: action.highlight } : undefined,
+              projectId: state.currentProjectId,
+            });
+
+            ssCount++;
+
+            if (!isBulk) {
+              dispatch({
+                type: 'SET_REFETCH_STATE',
+                payload: {
+                  progress: ssCount,
+                  total: totalScreenshots,
+                  text: `Processing screenshot ${ssCount} of ${totalScreenshots}...`,
+                  currentItem: action.filename,
+                  view: 'progress',
+                },
+              });
             }
           }
+        }
 
-          // Capture clean screenshot (no highlight overlay in page)
-          const image = await wv.capturePage();
-          await api.saveRefetchedScreenshot({
-            recordingId,
-            filename: action.filename,
-            imageDataUrl: image.toDataURL(),
-            highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector: action.highlight } : undefined,
-            projectId: state.currentProjectId,
+        // Regenerate the markdown with new screenshots
+        await api.regenerateMarkdown(recordingId, state.currentProjectId);
+
+        if (!isBulk) {
+          dispatch({
+            type: 'SET_REFETCH_STATE',
+            payload: {
+              progress: totalScreenshots,
+              total: totalScreenshots,
+              text: 'Complete',
+              view: 'summary',
+              summary: { success: true, screenshotCount: ssCount },
+            },
           });
-
-          ssCount++;
-
-          if (!isBulk) {
-            dispatch({
-              type: 'SET_REFETCH_STATE',
-              payload: {
-                progress: ssCount,
-                total: totalScreenshots,
-                text: `Processing screenshot ${ssCount} of ${totalScreenshots}...`,
-                currentItem: action.filename,
-                view: 'progress',
+        }
+      } catch (err) {
+        if (!isBulk) {
+          dispatch({
+            type: 'SET_REFETCH_STATE',
+            payload: {
+              progress: 0,
+              total: totalScreenshots,
+              text: 'Complete',
+              view: 'summary',
+              summary: {
+                success: false,
+                text: `Error: ${err.message}`,
+                screenshotCount: 0,
+                errors: [err.message],
               },
-            });
-          }
+            },
+          });
+        } else {
+          throw err;
         }
       }
-
-      // Regenerate the markdown with new screenshots
-      await api.regenerateMarkdown(recordingId, state.currentProjectId);
-
-      if (!isBulk) {
-        dispatch({
-          type: 'SET_REFETCH_STATE',
-          payload: {
-            progress: totalScreenshots,
-            total: totalScreenshots,
-            text: 'Complete',
-            view: 'summary',
-            summary: { success: true, screenshotCount: ssCount },
-          },
-        });
-      }
     },
-    [api, state.currentProjectId, state.isRecording, dispatch]
+    [api, state.currentProjectId, state.isRecording, dispatch, waitForWebviewReady]
   );
 
   const handleRefetchAll = useCallback(async () => {
@@ -887,6 +1411,21 @@ function AppContent() {
     async (noteText) => {
       dispatch({ type: 'CLOSE_NOTE_MODAL' });
 
+      // Step note editing
+      if (pendingStepNoteIndexRef.current >= 0) {
+        const idx = pendingStepNoteIndexRef.current;
+        pendingStepNoteIndexRef.current = -1;
+        const updated = state.stepsActions.map((a, i) => {
+          if (i !== idx) return a;
+          if (a.type === 'screenshot') {
+            return { ...a, note: noteText || undefined };
+          }
+          return { ...a, note: noteText };
+        });
+        dispatch({ type: 'SET_STEPS_ACTIONS', payload: updated });
+        return;
+      }
+
       if (state.noteModalConfig?.withScreenshot) {
         // Screenshot with note
         await captureScreenshot(
@@ -902,7 +1441,7 @@ function AppContent() {
 
       setPendingScreenshot(null);
     },
-    [api, state.noteModalConfig, pendingScreenshot, captureScreenshot, dispatch]
+    [api, state.noteModalConfig, state.stepsActions, pendingScreenshot, captureScreenshot, dispatch]
   );
 
   // ===== Keyboard shortcuts =====
@@ -1019,6 +1558,19 @@ function AppContent() {
           />
         )}
 
+        {/* Steps Editor toolbar (during steps editing) */}
+        {state.currentView === 'recording' && state.isEditingSteps && (
+          <StepsEditor
+            onSave={handleSaveSteps}
+            onCancel={handleCancelStepsEditor}
+            onCaptureScreenshot={handleCaptureStepScreenshot}
+            onRetakeScreenshot={handleRetakeStepScreenshot}
+            onSelectStep={handleSelectStep}
+            onEditNote={handleEditStepNote}
+            selectedRealIndex={selectedStepRealIndex}
+          />
+        )}
+
         {/* Content Area */}
         <div className="flex-1 relative flex bg-background overflow-hidden min-h-0">
           {state.currentView === 'projectList' && (
@@ -1041,22 +1593,42 @@ function AppContent() {
           )}
 
           {state.currentView === 'recording' && (
-            <WebviewContainer
-              ref={webviewRef}
-              viewport={currentViewport}
-              isRecording={state.isRecording}
-              recordActions={state.currentRecordActions}
-              customCSS={state.currentCustomCSS}
-              onUrlChange={setCurrentUrl}
-              onRecordAction={(action) => api.recordAction(action)}
-              onScreenshotRequest={handleScreenshotRequest}
-              onHighlightChange={(sel) =>
-                dispatch({
-                  type: 'SET_STATUS',
-                  payload: sel ? `Highlighted: ${sel}` : 'Ready',
-                })
-              }
-            />
+            <>
+              <WebviewContainer
+                ref={webviewRef}
+                viewport={currentViewport}
+                isRecording={state.isRecording || state.isEditingSteps}
+                recordActions={state.isEditingSteps ? false : state.currentRecordActions}
+                customCSS={state.isEditingSteps ? '' : state.currentCustomCSS}
+                initialUrl={state.isEditingSteps ? state.stepsRecordingUrl : undefined}
+                onUrlChange={setCurrentUrl}
+                onRecordAction={state.isEditingSteps ? () => {} : (action) => api.recordAction(action)}
+                onScreenshotRequest={state.isEditingSteps ? () => {} : handleScreenshotRequest}
+                onHighlightChange={(sel) => {
+                  if (state.isEditingSteps) {
+                    setStepsHighlight(sel);
+                    dispatch({
+                      type: 'SET_STATUS',
+                      payload: sel ? `Highlighted: ${sel}` : 'Editing steps',
+                    });
+                  } else {
+                    currentHighlightRef.current = sel;
+                    dispatch({
+                      type: 'SET_STATUS',
+                      payload: sel ? `Highlighted: ${sel}` : 'Ready',
+                    });
+                  }
+                }}
+              />
+              {state.isEditingSteps && state.stepsReplaying && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-30 pointer-events-auto">
+                  <div className="flex items-center gap-3 bg-card px-5 py-3 rounded-lg shadow-xl border border-border">
+                    <div className="w-4 h-4 border-2 border-border border-t-teal-500 rounded-full animate-spin" />
+                    <span className="text-sm font-medium text-foreground">Replaying to step...</span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {state.currentView === 'editor' && (

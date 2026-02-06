@@ -106,8 +106,8 @@ export default function ProjectModal({ open, onOpenChange, editingProjectId, onS
   const handleBrowseFolder = async () => {
     if (isEditing) return;
     const result = await electronAPI.selectProjectFolder();
-    if (result) {
-      setFolder(result);
+    if (result.success) {
+      setFolder(result.path);
     }
   };
 

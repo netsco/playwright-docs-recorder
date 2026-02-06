@@ -9,7 +9,8 @@ const {
   deleteRecording,
   loadRecording,
   loadRecordingMarkdown,
-  saveRecordingMarkdown
+  saveRecordingMarkdown,
+  updateRecordingActions
 } = require('./file-manager');
 const {
   loadProjects,
@@ -906,6 +907,58 @@ function registerIpcHandlers() {
       title: r.title
     }));
   });
+  // ===== Steps Editor =====
+
+  ipcMain.handle('update-recording-actions', async (event, recordingId, actions, projectId) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+
+    let project = null;
+    if (projectId) {
+      project = getProject(outputDir, projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+    }
+
+    return updateRecordingActions(outputDir, recordingId, actions, project);
+  });
+
+  ipcMain.handle('capture-step-screenshot', async (event, { recordingId, imageDataUrl, projectId }) => {
+    const settings = getSettingsStore();
+    const outputDir = settings.get('outputDir');
+
+    let baseDir = outputDir;
+    if (projectId) {
+      const project = getProject(outputDir, projectId);
+      if (project) {
+        baseDir = getProjectFolderPath(outputDir, project);
+      }
+    }
+
+    const recordingDir = path.join(baseDir, recordingId);
+    const screenshotsDir = path.join(recordingDir, 'screenshots');
+
+    try {
+      // Find next available screenshot number
+      const existing = fs.readdirSync(screenshotsDir)
+        .filter(f => f.startsWith('screenshot-') && f.endsWith('.png'))
+        .map(f => parseInt(f.replace('screenshot-', '').replace('.png', ''), 10))
+        .filter(n => !isNaN(n));
+      const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+      const filename = `screenshot-${String(nextNum).padStart(3, '0')}.png`;
+
+      const base64Data = imageDataUrl.replace(/^data:image\/png;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      saveScreenshot(screenshotsDir, filename, imageBuffer);
+
+      return { success: true, filename };
+    } catch (error) {
+      console.error('Failed to capture step screenshot:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // ===== Auth State =====
 
   ipcMain.handle('save-auth-state', async (event, projectId, sourceUrl) => {

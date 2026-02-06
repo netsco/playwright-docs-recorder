@@ -40,7 +40,7 @@ const TOOLBAR_GROUPS = [
 ];
 
 export default function NoteModal({ open, onOpenChange, config, onSave }) {
-  const { title = 'Add Note', withScreenshot = false } = config || {};
+  const { title = 'Add Note', withScreenshot = false, initialNote = '' } = config || {};
 
   const [note, setNote] = useState('');
   const textareaRef = useRef(null);
@@ -49,12 +49,12 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
 
   useEffect(() => {
     if (open) {
-      setNote('');
+      setNote(initialNote || '');
       undoStack.current = [];
       redoStack.current = [];
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
-  }, [open]);
+  }, [open, initialNote]);
 
   const pushUndo = useCallback((value) => {
     undoStack.current.push(value);
@@ -147,7 +147,7 @@ export default function NoteModal({ open, onOpenChange, config, onSave }) {
     }
   };
 
-  const saveLabel = withScreenshot ? 'Save Screenshot' : 'Add Note';
+  const saveLabel = withScreenshot ? 'Save Screenshot' : initialNote ? 'Save' : 'Add Note';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

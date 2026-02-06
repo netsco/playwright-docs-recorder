@@ -275,6 +275,60 @@ function saveRecordingMarkdown(outputDir, recordingId, content, projectName = nu
   }
 }
 
+/**
+ * Update a recording's actions array and regenerate script + markdown.
+ *
+ * @param {string} outputDir - Base output directory
+ * @param {string} recordingId - Recording ID
+ * @param {Array} newActions - New actions array
+ * @param {Object|string|null} project - Project object or name
+ * @returns {Object} - { success: true } or { success: false, error }
+ */
+function updateRecordingActions(outputDir, recordingId, newActions, project = null) {
+  let baseDir = outputDir;
+  if (project) {
+    baseDir = getProjectFolderPath(outputDir, project);
+  }
+  const recordingDir = path.join(baseDir, recordingId);
+  const actionsPath = path.join(recordingDir, 'actions.json');
+
+  if (!fs.existsSync(actionsPath)) {
+    return { success: false, error: 'actions.json not found' };
+  }
+
+  try {
+    const actionsData = JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+
+    // Replace actions
+    actionsData.actions = newActions;
+
+    // Save updated actions.json
+    fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
+
+    // Regenerate Playwright script
+    const scriptPath = path.join(recordingDir, 'recorded-script.js');
+    fs.writeFileSync(scriptPath, generateScript({
+      title: actionsData.title,
+      viewport: actionsData.viewport,
+      actions: newActions,
+      screenshots: newActions.filter(a => a.type === 'screenshot'),
+    }));
+
+    // Regenerate markdown
+    const mdFilename = actionsData.mdFilename || 'screenshots.md';
+    const markdownPath = path.join(recordingDir, mdFilename);
+    fs.writeFileSync(markdownPath, generateMarkdown({
+      title: actionsData.title,
+      actions: newActions,
+      separator: actionsData.separator,
+    }));
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   ensureDir,
   saveRecording,
@@ -285,5 +339,6 @@ module.exports = {
   deleteRecording,
   loadRecording,
   loadRecordingMarkdown,
-  saveRecordingMarkdown
+  saveRecordingMarkdown,
+  updateRecordingActions
 };

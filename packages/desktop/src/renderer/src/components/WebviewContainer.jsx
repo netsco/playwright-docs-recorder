@@ -7,6 +7,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
     isRecording,
     recordActions,
     customCSS,
+    initialUrl,
     onUrlChange,
     onRecordAction,
     onScreenshotRequest,
@@ -66,6 +67,13 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       webview.style.height = `${viewport.height}px`;
       webview.style.minWidth = `${viewport.width}px`;
       webview.style.minHeight = `${viewport.height}px`;
+    }
+
+    // Set initial URL at creation time so WebContents initializes with a real page
+    // (setting src later via the imperative handle can silently fail if WebContents isn't ready)
+    if (initialUrl) {
+      const fullUrl = initialUrl.startsWith('http') ? initialUrl : `https://${initialUrl}`;
+      webview.setAttribute('src', fullUrl);
     }
 
     container.appendChild(webview);
@@ -217,12 +225,71 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
   }, [isRecording, recordActions, customCSS]);
 
   useImperativeHandle(ref, () => ({
+    // True when the webview DOM element exists (useEffect has run)
+    isReady() {
+      return !!webviewRef.current;
+    },
+
+    // True when dom-ready has fired (page loaded, safe to call executeJavaScript/capturePage)
+    isDomReady() {
+      return domReadyRef.current;
+    },
+
     navigate(url) {
       const webview = webviewRef.current;
       if (!webview) return;
       // Ensure URL has protocol
       const fullUrl = url.startsWith('http') ? url : `https://${url}`;
       webview.src = fullUrl;
+    },
+
+    // Navigate and return a promise that resolves when the page finishes loading
+    navigateAndWait(url, timeoutMs = 15000) {
+      return new Promise((resolve) => {
+        const webview = webviewRef.current;
+        if (!webview) { resolve(); return; }
+        const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+
+        const cleanup = () => {
+          webview.removeEventListener('did-finish-load', onFinish);
+          webview.removeEventListener('did-fail-load', onFail);
+          clearTimeout(timer);
+        };
+        const onFinish = () => { cleanup(); resolve(); };
+        const onFail = (e) => {
+          // ERR_ABORTED (-3) is normal for redirects, keep waiting
+          if (e.errorCode !== -3) { cleanup(); resolve(); }
+        };
+        const timer = setTimeout(() => { cleanup(); resolve(); }, timeoutMs);
+
+        webview.addEventListener('did-finish-load', onFinish);
+        webview.addEventListener('did-fail-load', onFail);
+        webview.src = fullUrl;
+      });
+    },
+
+    // Wait until the webview is no longer loading (e.g. after a click triggers navigation)
+    waitForIdle(timeoutMs = 10000) {
+      return new Promise((resolve) => {
+        const webview = webviewRef.current;
+        if (!webview) { resolve(); return; }
+        // If not currently loading, resolve immediately
+        try { if (!webview.isLoading()) { resolve(); return; } } catch { resolve(); return; }
+
+        const cleanup = () => {
+          webview.removeEventListener('did-stop-loading', onStop);
+          webview.removeEventListener('did-fail-load', onFail);
+          clearTimeout(timer);
+        };
+        const onStop = () => { cleanup(); resolve(); };
+        const onFail = (e) => {
+          if (e.errorCode !== -3) { cleanup(); resolve(); }
+        };
+        const timer = setTimeout(() => { cleanup(); resolve(); }, timeoutMs);
+
+        webview.addEventListener('did-stop-loading', onStop);
+        webview.addEventListener('did-fail-load', onFail);
+      });
     },
 
     goBack() {
@@ -245,13 +312,13 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
 
     async capturePage() {
       const webview = webviewRef.current;
-      if (!webview) return null;
+      if (!webview || !domReadyRef.current) return null;
       return webview.capturePage();
     },
 
     async executeJavaScript(code) {
       const webview = webviewRef.current;
-      if (!webview) return null;
+      if (!webview || !domReadyRef.current) return null;
       return webview.executeJavaScript(code);
     },
 

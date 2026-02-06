@@ -22,7 +22,7 @@ export function Titlebar({ onNewRecording, onImportProject, onExportProject }) {
 
   return (
     <div
-      className="titlebar-drag flex h-[38px] shrink-0 items-center border-b border-border bg-card select-none"
+      className="titlebar-drag flex h-[38px] shrink-0 items-center border-b border-border bg-card select-none relative z-[60]"
       onDoubleClick={handleMaximize}
     >
       {/* macOS: leave space for native traffic lights */}

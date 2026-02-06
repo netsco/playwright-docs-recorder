@@ -11,6 +11,7 @@ import {
   Image,
   FileText,
   MoreVertical,
+  ListOrdered,
 } from 'lucide-react';
 import { cn, getProjectInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -230,6 +231,16 @@ export function Sidebar({
                         }}
                       >
                         <RotateCw className="h-3 w-3" /> Refetch Screenshots
+                      </button>
+                      <button
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-muted"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onRecordingAction('editSteps', rec.id);
+                        }}
+                      >
+                        <ListOrdered className="h-3 w-3" /> Edit Steps
                       </button>
                       <button
                         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-muted"

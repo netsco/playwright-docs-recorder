@@ -42,8 +42,7 @@ Thumbs.db
 # Temp files
 nul
 docs/
-
-# Root-level binary files (app icons live in packages/)
-/icon.png
 /.plans
-Screenshot-*.png
+/Screenshot-*.png
+/img.png
+/img_*.png

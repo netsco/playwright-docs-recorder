@@ -48,6 +48,15 @@ const initialState = {
   showShortcuts: true,
   showLog: false,
 
+  // Steps editor
+  isEditingSteps: false,
+  stepsActions: [],
+  stepsOriginalActions: [],
+  stepsRecordingId: null,
+  stepsRecordingDir: '',
+  stepsRecordingUrl: '',
+  stepsReplaying: false,
+
   // Modals
   projectModalOpen: false,
   editingProjectId: null,
@@ -234,11 +243,32 @@ function appReducer(state, action) {
     case 'CLOSE_NOTE_MODAL':
       return { ...state, noteModalOpen: false };
 
+    // Steps editor
+    case 'SET_EDITING_STEPS':
+      return { ...state, isEditingSteps: action.payload };
+
+    case 'SET_STEPS_DATA':
+      return {
+        ...state,
+        stepsActions: action.payload.actions,
+        stepsOriginalActions: JSON.parse(JSON.stringify(action.payload.actions)),
+        stepsRecordingId: action.payload.recordingId,
+        stepsRecordingDir: action.payload.recordingDir,
+        stepsRecordingUrl: action.payload.recordingUrl || '',
+      };
+
+    case 'SET_STEPS_ACTIONS':
+      return { ...state, stepsActions: action.payload };
+
+    case 'SET_STEPS_REPLAYING':
+      return { ...state, stepsReplaying: action.payload };
+
     // Reset recording state
     case 'RESET_RECORDING_STATE':
       return {
         ...state,
         isRecording: false,
+        isEditingSteps: false,
         actionCount: 0,
         screenshotCount: 0,
         currentRecordActions: true,

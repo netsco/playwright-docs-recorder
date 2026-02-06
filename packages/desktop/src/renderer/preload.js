@@ -58,6 +58,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRecordingMarkdown: (id, projectId) => ipcRenderer.invoke('get-recording-markdown', id, projectId),
   saveRecordingMarkdown: (id, content, projectId) => ipcRenderer.invoke('save-recording-markdown', id, content, projectId),
 
+  // ===== Steps Editor =====
+  updateRecordingActions: (recordingId, actions, projectId) =>
+    ipcRenderer.invoke('update-recording-actions', recordingId, actions, projectId),
+  captureStepScreenshot: (data) =>
+    ipcRenderer.invoke('capture-step-screenshot', data),
+
   // ===== Refetch =====
   saveRefetchedScreenshot: (data) => ipcRenderer.invoke('save-refetched-screenshot', data),
   regenerateMarkdown: (id, projectId) => ipcRenderer.invoke('regenerate-markdown', id, projectId),
