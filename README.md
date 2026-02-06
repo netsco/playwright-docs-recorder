@@ -38,6 +38,9 @@ Features:
 - Slugified markdown filenames based on project title
 - Project management (create, edit, delete projects; organize recordings)
 - Screenshot editing (blur regions, annotations, reset to original)
+- Steps editor: navigate, insert, retake, delete screenshots and edit notes on existing recordings
+- Per-project auth state persistence for login-required sites
+- Custom titlebar with hamburger menu and sidebar toggle
 
 ## CLI Usage
 
