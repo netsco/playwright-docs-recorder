@@ -196,19 +196,18 @@ export function TitlebarMenu({ onNewRecording, onImportProject, onExportProject 
       label: 'Help',
       items: [
         {
-          label: 'Keyboard Shortcuts',
+          label: 'Quick Start',
           icon: Keyboard,
           onClick: () => {
-            // Toggle shortcuts panel visibility as a quick reference
-            dispatch({ type: 'TOGGLE_SHORTCUTS' });
+            dispatch({ type: 'OPEN_SHORTCUTS_MODAL' });
           },
         },
+        { separator: true },
         {
           label: 'About',
           icon: Info,
           onClick: () => {
-            // Simple about — just show version in status
-            dispatch({ type: 'SET_STATUS', payload: 'Documentation Recorder v0.9.4' });
+            dispatch({ type: 'OPEN_ABOUT_MODAL' });
           },
         },
       ],

@@ -57,6 +57,15 @@ const initialState = {
   stepsRecordingUrl: '',
   stepsReplaying: false,
 
+  // About / update state
+  aboutModalOpen: false,
+  appVersion: '',
+  updateStatus: null, // null | 'checking' | 'available' | 'downloading' | 'downloaded' | 'not-available' | 'error'
+  updateVersion: '',
+  updateReleaseNotes: '',
+  updateDownloadPercent: 0,
+  updateError: null,
+
   // Modals
   projectModalOpen: false,
   editingProjectId: null,
@@ -73,6 +82,7 @@ const initialState = {
   },
   noteModalOpen: false,
   noteModalConfig: { title: 'Add Note', withScreenshot: false },
+  shortcutsModalOpen: false,
 };
 
 function appReducer(state, action) {
@@ -242,6 +252,34 @@ function appReducer(state, action) {
 
     case 'CLOSE_NOTE_MODAL':
       return { ...state, noteModalOpen: false };
+
+    // Shortcuts modal
+    case 'OPEN_SHORTCUTS_MODAL':
+      return { ...state, shortcutsModalOpen: true };
+
+    case 'CLOSE_SHORTCUTS_MODAL':
+      return { ...state, shortcutsModalOpen: false };
+
+    // About modal
+    case 'OPEN_ABOUT_MODAL':
+      return { ...state, aboutModalOpen: true };
+
+    case 'CLOSE_ABOUT_MODAL':
+      return { ...state, aboutModalOpen: false };
+
+    // App version / update state
+    case 'SET_APP_VERSION':
+      return { ...state, appVersion: action.payload };
+
+    case 'SET_UPDATE_STATUS':
+      return {
+        ...state,
+        updateStatus: action.payload.status,
+        updateVersion: action.payload.version ?? state.updateVersion,
+        updateReleaseNotes: action.payload.releaseNotes ?? state.updateReleaseNotes,
+        updateDownloadPercent: action.payload.percent ?? state.updateDownloadPercent,
+        updateError: action.payload.error ?? state.updateError,
+      };
 
     // Steps editor
     case 'SET_EDITING_STEPS':

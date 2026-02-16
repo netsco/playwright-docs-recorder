@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Monitor, List, Keyboard, Download, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -15,36 +14,11 @@ export function StatusBar() {
     showLog,
     showShortcuts,
     settings,
+    appVersion,
+    updateStatus,
+    updateVersion,
+    updateDownloadPercent: downloadPercent,
   } = state;
-
-  const [appVersion, setAppVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState(null); // 'available' | 'downloading' | 'downloaded'
-  const [updateVersion, setUpdateVersion] = useState('');
-  const [downloadPercent, setDownloadPercent] = useState(0);
-
-  useEffect(() => {
-    if (!window.electronAPI) return;
-
-    window.electronAPI.getAppVersion().then(setAppVersion);
-
-    window.electronAPI.onUpdateAvailable((info) => {
-      setUpdateStatus('available');
-      setUpdateVersion(info.version);
-    });
-
-    window.electronAPI.onDownloadProgress((progress) => {
-      setUpdateStatus('downloading');
-      setDownloadPercent(progress.percent);
-    });
-
-    window.electronAPI.onUpdateDownloaded(() => {
-      setUpdateStatus('downloaded');
-    });
-
-    window.electronAPI.onUpdateError(() => {
-      setUpdateStatus(null);
-    });
-  }, []);
 
   const { currentViewport } = state;
   const rawViewport = currentViewport || settings?.viewport || '1280x720';

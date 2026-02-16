@@ -14,6 +14,8 @@ import ProjectModal from '@/components/modals/ProjectModal';
 import MoveRecordingModal from '@/components/modals/MoveRecordingModal';
 import RefetchModal from '@/components/modals/RefetchModal';
 import NoteModal from '@/components/modals/NoteModal';
+import KeyboardShortcutsModal from '@/components/modals/KeyboardShortcutsModal';
+import AboutModal from '@/components/modals/AboutModal';
 import TextInputModal from '@/components/modals/TextInputModal';
 
 import { ShortcutsPanel } from '@/components/ShortcutsPanel';
@@ -142,6 +144,44 @@ function AppContent() {
       });
     });
 
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ===== Auto-updater listeners =====
+  useEffect(() => {
+    if (!api) return;
+
+    api.getAppVersion().then((v) =>
+      dispatch({ type: 'SET_APP_VERSION', payload: v })
+    );
+
+    api.onUpdateAvailable((info) => {
+      dispatch({
+        type: 'SET_UPDATE_STATUS',
+        payload: { status: 'available', version: info.version, releaseNotes: info.releaseNotes },
+      });
+    });
+
+    api.onDownloadProgress((progress) => {
+      dispatch({
+        type: 'SET_UPDATE_STATUS',
+        payload: { status: 'downloading', percent: progress.percent },
+      });
+    });
+
+    api.onUpdateDownloaded(() => {
+      dispatch({ type: 'SET_UPDATE_STATUS', payload: { status: 'downloaded' } });
+    });
+
+    api.onUpdateError((message) => {
+      dispatch({
+        type: 'SET_UPDATE_STATUS',
+        payload: { status: 'error', error: message },
+      });
+    });
+
+    api.onUpdateNotAvailable(() => {
+      dispatch({ type: 'SET_UPDATE_STATUS', payload: { status: 'not-available' } });
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== Project Management =====
@@ -1718,6 +1758,20 @@ function AppContent() {
         }
         config={state.noteModalConfig}
         onSave={handleNoteSave}
+      />
+
+      <KeyboardShortcutsModal
+        open={state.shortcutsModalOpen}
+        onOpenChange={(open) =>
+          !open && dispatch({ type: 'CLOSE_SHORTCUTS_MODAL' })
+        }
+      />
+
+      <AboutModal
+        open={state.aboutModalOpen}
+        onOpenChange={(open) =>
+          !open && dispatch({ type: 'CLOSE_ABOUT_MODAL' })
+        }
       />
 
       {screenshotEditorConfig && (

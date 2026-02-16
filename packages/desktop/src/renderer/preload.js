@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App version from package.json
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
+  // Open URL in default browser
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
   // Get webview preload path (file:/// with three slashes for Windows)
   getWebviewPreloadPath: () => {
     const p = path.join(__dirname, '../webview/webview-preload.js').replace(/\\/g, '/');
@@ -114,5 +117,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onUpdateError: (callback) => {
     ipcRenderer.on('update-error', (event, message) => callback(message));
+  },
+  onUpdateNotAvailable: (callback) => {
+    ipcRenderer.on('update-not-available', () => callback());
   }
 });

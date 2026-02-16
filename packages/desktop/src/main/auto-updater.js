@@ -26,6 +26,10 @@ function initAutoUpdater(mainWindow) {
     mainWindow.webContents.send('update-downloaded');
   });
 
+  autoUpdater.on('update-not-available', () => {
+    mainWindow.webContents.send('update-not-available');
+  });
+
   autoUpdater.on('error', (err) => {
     mainWindow.webContents.send('update-error', err?.message || String(err));
   });

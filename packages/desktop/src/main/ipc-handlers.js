@@ -997,6 +997,13 @@ function registerIpcHandlers() {
     return getAuthStateInfo(projectFolder);
   });
 
+  // ===== External Links =====
+
+  ipcMain.handle('open-external', async (event, url) => {
+    const { shell } = require('electron');
+    await shell.openExternal(url);
+  });
+
   // ===== Window Controls =====
 
   ipcMain.on('window-minimize', () => {
