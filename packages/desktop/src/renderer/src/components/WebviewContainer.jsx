@@ -5,6 +5,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
   const {
     viewport,
     zoomMode = 'fit',
+    hidden = false,
     isRecording,
     recordActions,
     customCSS,
@@ -255,6 +256,17 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       sizer.style.height = `${viewport.height * scale}px`;
     }
   }, [viewport, scale]);
+
+  // Hide the webview while a blocking overlay (modal/dialog) is open. The
+  // webview is a separate native compositing layer that paints over DOM
+  // regardless of z-index, so a modal opened during recording would otherwise
+  // be obscured. Use `visibility` (not `display`) to keep the guest page
+  // loaded — toggling `display:none` would tear down and reload the webview.
+  useEffect(() => {
+    const webview = webviewRef.current;
+    if (!webview) return;
+    webview.style.visibility = hidden ? 'hidden' : 'visible';
+  }, [hidden]);
 
   // Notify webview when recording state changes
   useEffect(() => {

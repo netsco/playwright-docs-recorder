@@ -20,6 +20,8 @@ export default function AboutModal({ open, onOpenChange }) {
     updateDownloadPercent,
     updateReleaseNotes,
     updateError,
+    updateManual,
+    updateDownloadUrl,
   } = state;
 
   const handleCheckForUpdates = async () => {
@@ -106,15 +108,32 @@ export default function AboutModal({ open, onOpenChange }) {
                       : updateReleaseNotes.toString()}
                   </p>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1.5 text-teal-600 border-teal-600/30 hover:bg-teal-600/10 dark:text-teal-400 dark:border-teal-400/30 dark:hover:bg-teal-400/10"
-                  onClick={() => api?.downloadUpdate()}
-                >
-                  <Download className="h-3 w-3" />
-                  Download
-                </Button>
+                {updateManual ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 text-teal-600 border-teal-600/30 hover:bg-teal-600/10 dark:text-teal-400 dark:border-teal-400/30 dark:hover:bg-teal-400/10"
+                    onClick={() =>
+                      api?.openExternal(
+                        updateDownloadUrl ||
+                          'https://github.com/netsco/playwright-docs-recorder/releases/latest'
+                      )
+                    }
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Download from GitHub
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 text-teal-600 border-teal-600/30 hover:bg-teal-600/10 dark:text-teal-400 dark:border-teal-400/30 dark:hover:bg-teal-400/10"
+                    onClick={() => api?.downloadUpdate()}
+                  >
+                    <Download className="h-3 w-3" />
+                    Download
+                  </Button>
+                )}
               </div>
             )}
 

@@ -160,7 +160,13 @@ function AppContent() {
     api.onUpdateAvailable((info) => {
       dispatch({
         type: 'SET_UPDATE_STATUS',
-        payload: { status: 'available', version: info.version, releaseNotes: info.releaseNotes },
+        payload: {
+          status: 'available',
+          version: info.version,
+          releaseNotes: info.releaseNotes,
+          manual: info.manual ?? false,
+          downloadUrl: info.downloadUrl ?? '',
+        },
       });
     });
 
@@ -1653,6 +1659,15 @@ function AppContent() {
                 ref={webviewRef}
                 viewport={currentViewport}
                 zoomMode={state.zoomMode}
+                hidden={
+                  state.aboutModalOpen ||
+                  state.shortcutsModalOpen ||
+                  state.noteModalOpen ||
+                  state.projectModalOpen ||
+                  state.moveModalOpen ||
+                  state.refetchModalOpen ||
+                  !!screenshotEditorConfig
+                }
                 isRecording={state.isRecording || state.isEditingSteps}
                 recordActions={state.isEditingSteps ? false : state.currentRecordActions}
                 customCSS={state.isEditingSteps ? '' : state.currentCustomCSS}

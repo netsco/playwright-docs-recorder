@@ -66,6 +66,8 @@ const initialState = {
   updateReleaseNotes: '',
   updateDownloadPercent: 0,
   updateError: null,
+  updateManual: false, // macOS: no in-app install, download from GitHub instead
+  updateDownloadUrl: '',
 
   // Modals
   projectModalOpen: false,
@@ -283,6 +285,8 @@ function appReducer(state, action) {
         updateReleaseNotes: action.payload.releaseNotes ?? state.updateReleaseNotes,
         updateDownloadPercent: action.payload.percent ?? state.updateDownloadPercent,
         updateError: action.payload.error ?? state.updateError,
+        updateManual: action.payload.manual ?? state.updateManual,
+        updateDownloadUrl: action.payload.downloadUrl ?? state.updateDownloadUrl,
       };
 
     // Steps editor
