@@ -1,0 +1,18 @@
+# Moat security-posture check overrides for playwright-docs-recorder.
+# Reference: https://github.com/laravel/moat
+#
+# Disabled checks render as SKIPPED and do not count toward the failure total.
+
+[checks]
+# Release assets are produced by CI (electron-builder) on tag pushes and are not
+# a published software-supply-chain artifact consumed by third parties, so
+# release-asset immutability is not enforced here.
+repositories_releases_are_immutable = "off"
+
+# This is a small internally-maintained tool released via direct pushes and tag
+# pushes to main, not a multi-contributor project. Requiring pull-request reviews
+# and signed commits on the release branch would block that workflow without a
+# meaningful threat-model benefit. Branch lock + linear history are still enforced
+# via a repository ruleset.
+repositories_pull_requests_require_reviews = "off"
+repositories_commits_are_signed = "off"

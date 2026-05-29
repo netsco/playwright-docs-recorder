@@ -12,10 +12,14 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
+    # Publishing the release (electron-builder --publish) needs write access;
+    # scope it to this job so the workflow default stays least-privilege.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
