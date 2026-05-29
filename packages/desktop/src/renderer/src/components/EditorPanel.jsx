@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ChevronLeft, Bold, Italic, Heading1, Heading2, List, ListOrdered, Code, Link, Undo, Redo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useApp } from '@/context/AppContext';
+import { useAppState, useAppDispatch } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 import { useUndoManager } from '@/hooks/useUndoManager';
 import { Marked } from 'marked';
@@ -161,7 +161,8 @@ function createMarkedInstance(recordingDir, cacheBuster) {
 }
 
 export function EditorPanel({ onBack, onOpenScreenshotEditor }) {
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const electronAPI = useElectronAPI();
   const { push, undo, redo, clear, canUndo, canRedo } = useUndoManager();
 

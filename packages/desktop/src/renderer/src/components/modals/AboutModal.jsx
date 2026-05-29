@@ -6,11 +6,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useApp } from '@/context/AppContext';
+import { useAppState, useAppDispatch } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 
 export default function AboutModal({ open, onOpenChange }) {
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const api = useElectronAPI();
 
   const {

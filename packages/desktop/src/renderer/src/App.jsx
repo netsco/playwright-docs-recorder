@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { AppProvider, useApp } from '@/context/AppContext';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { AppProvider, useAppState, useAppDispatch } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 import { Titlebar } from '@/components/layout/Titlebar';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -44,7 +44,8 @@ function formatActionMessage(action) {
 }
 
 function AppContent() {
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const api = useElectronAPI();
   const webviewRef = useRef(null);
   const loginRequiredRef = useRef(false);
@@ -61,9 +62,14 @@ function AppContent() {
     state.currentView === 'editor' &&
     state.editorContent !== state.editorOriginalContent;
 
-  const hasUnsavedStepsChanges =
-    state.isEditingSteps &&
-    JSON.stringify(state.stepsActions) !== JSON.stringify(state.stepsOriginalActions);
+  // Memoized so the serialization only runs when the step arrays actually change,
+  // not on every render (status updates, replay toggles, etc.).
+  const hasUnsavedStepsChanges = useMemo(
+    () =>
+      state.isEditingSteps &&
+      JSON.stringify(state.stepsActions) !== JSON.stringify(state.stepsOriginalActions),
+    [state.isEditingSteps, state.stepsActions, state.stepsOriginalActions]
+  );
 
   const confirmDiscardChanges = useCallback(() => {
     if (hasUnsavedStepsChanges) {

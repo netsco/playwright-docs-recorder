@@ -1,9 +1,9 @@
 import { useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 
 export function ActionLog() {
-  const { state } = useApp();
+  const state = useAppState();
   const scrollRef = useRef(null);
 
   const { logEntries, showLog, isRecording } = state;
@@ -38,9 +38,9 @@ export function ActionLog() {
             Waiting for actions...
           </div>
         ) : (
-          logEntries.map((entry, i) => (
+          logEntries.map((entry) => (
             <div
-              key={i}
+              key={entry.id}
               className={cn(
                 'flex gap-2 border-b border-border/50 py-1 last:border-0',
                 entry.type === 'error' && 'text-red-400',

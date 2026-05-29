@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Eye, Square, Grid3X3, ArrowRight, Circle, RectangleHorizontal, Type, Hash, Undo, Eraser, RotateCcw, MousePointer2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 
 const BLUR_TOOLS = [
@@ -120,7 +120,7 @@ function findItemAtPoint(px, py, regions, annotations) {
 }
 
 export function ScreenshotEditor({ open, recordingId, filename, recordingDir, onClose, onSave, onOpenTextInput }) {
-  const { state } = useApp();
+  const state = useAppState();
   const electronAPI = useElectronAPI();
 
   const canvasRef = useRef(null);
@@ -131,11 +131,13 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
   const [annotations, setAnnotations] = useState([]);
   const [highlightOverlay, setHighlightOverlay] = useState(null);
   const [currentTool, setCurrentTool] = useState('blur');
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [startY, setStartY] = useState(0);
-  const [currentX, setCurrentX] = useState(0);
-  const [currentY, setCurrentY] = useState(0);
+  // In-progress draw gesture lives in refs (not state): it updates on every
+  // mousemove, so keeping it out of state avoids re-rendering this large
+  // component per frame. The preview is painted via a rAF-throttled redraw.
+  const isDrawingRef = useRef(false);
+  const startRef = useRef({ x: 0, y: 0 });
+  const currentRef = useRef({ x: 0, y: 0 });
+  const rafRef = useRef(0);
   const ctrlHeldRef = useRef(false);
   const [strokeColor, setStrokeColor] = useState('#f87171');
   const [strokeWidth, setStrokeWidth] = useState(3);
@@ -608,31 +610,33 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       }
     }
 
-    // Draw current selection preview
-    if (isDrawing) {
-      let w = currentX - startX;
-      let h = currentY - startY;
+    // Draw current selection preview (transient gesture lives in refs)
+    if (isDrawingRef.current) {
+      const { x: sx, y: sy } = startRef.current;
+      const { x: cx, y: cy } = currentRef.current;
+      let w = cx - sx;
+      let h = cy - sy;
 
       // Ctrl held: lock aspect ratio to 1:1 for circle/rectangle
       const lockAspect = ctrlHeldRef.current && (currentTool === 'circle' || currentTool === 'rectangle');
       if (lockAspect) ({ w, h } = constrainAspect(w, h));
 
       if (isRegionTool(currentTool)) {
-        drawRegionPreview(ctx, currentTool, startX, startY, w, h);
+        drawRegionPreview(ctx, currentTool, sx, sy, w, h);
 
         // Dashed selection outline
         ctx.save();
         ctx.setLineDash([4, 4]);
         ctx.strokeStyle = '#5eead4';
         ctx.lineWidth = 1;
-        ctx.strokeRect(startX, startY, w, h);
+        ctx.strokeRect(sx, sy, w, h);
         ctx.restore();
       } else if (currentTool === 'arrow') {
-        drawArrowShape(ctx, startX, startY, currentX, currentY, strokeColor, strokeWidth);
+        drawArrowShape(ctx, sx, sy, cx, cy, strokeColor, strokeWidth);
       } else if (currentTool === 'circle') {
-        drawCircleShape(ctx, startX, startY, w, h, strokeColor, strokeWidth);
+        drawCircleShape(ctx, sx, sy, w, h, strokeColor, strokeWidth);
       } else if (currentTool === 'rectangle') {
-        drawRectOutline(ctx, startX, startY, w, h, strokeColor, strokeWidth);
+        drawRectOutline(ctx, sx, sy, w, h, strokeColor, strokeWidth);
       }
     }
 
@@ -642,12 +646,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
     regions,
     annotations,
     highlightOverlay,
-    isDrawing,
     currentTool,
-    startX,
-    startY,
-    currentX,
-    currentY,
     strokeColor,
     strokeWidth,
     drawRegionPreview,
@@ -661,12 +660,28 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
     selection,
   ]);
 
-  // Redraw whenever state changes
+  // Coalesce transient-gesture redraws to at most one per animation frame.
+  const scheduleRedraw = useCallback(() => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      redrawCanvas();
+    });
+  }, [redrawCanvas]);
+
+  // Redraw whenever committed state changes
   useEffect(() => {
     if (imageLoaded) {
       redrawCanvas();
     }
   }, [imageLoaded, redrawCanvas]);
+
+  // Cancel any pending frame on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   // Mouse handlers
   const handleMouseDown = useCallback(
@@ -743,11 +758,9 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         return;
       }
 
-      setIsDrawing(true);
-      setStartX(x);
-      setStartY(y);
-      setCurrentX(x);
-      setCurrentY(y);
+      isDrawingRef.current = true;
+      startRef.current = { x, y };
+      currentRef.current = { x, y };
     },
     [currentTool, toImageCoords, pushUndo, strokeColor, calloutCounter, onOpenTextInput, regions, annotations, highlightOverlay, selection]
   );
@@ -789,12 +802,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         return;
       }
 
-      if (!isDrawing) return;
-      const { x, y } = toImageCoords(e);
-      setCurrentX(x);
-      setCurrentY(y);
+      if (!isDrawingRef.current) return;
+      currentRef.current = toImageCoords(e);
+      scheduleRedraw();
     },
-    [isDrawing, isDragging, selection, dragStart, toImageCoords]
+    [isDragging, selection, dragStart, toImageCoords, scheduleRedraw]
   );
 
   const handleMouseUp = useCallback(
@@ -803,10 +815,11 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         setIsDragging(false);
         return;
       }
-      if (!isDrawing) return;
-      setIsDrawing(false);
+      if (!isDrawingRef.current) return;
+      isDrawingRef.current = false;
 
       const { x, y } = toImageCoords(e);
+      const { x: startX, y: startY } = startRef.current;
       let w = x - startX;
       let h = y - startY;
 
@@ -815,7 +828,10 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
       if (lockAspect) ({ w, h } = constrainAspect(w, h));
 
       // Minimum size check for drag tools
-      if (Math.abs(w) < 3 && Math.abs(h) < 3) return;
+      if (Math.abs(w) < 3 && Math.abs(h) < 3) {
+        scheduleRedraw(); // clear the abandoned preview
+        return;
+      }
 
       pushUndo();
 
@@ -843,7 +859,7 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
         ]);
       }
     },
-    [isDrawing, isDragging, toImageCoords, startX, startY, currentTool, strokeColor, strokeWidth, pushUndo, constrainAspect]
+    [isDragging, toImageCoords, currentTool, strokeColor, strokeWidth, pushUndo, constrainAspect, scheduleRedraw]
   );
 
   // Text position ref for async text input
@@ -1203,7 +1219,10 @@ export function ScreenshotEditor({ open, recordingId, filename, recordingDir, on
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={() => {
-              if (isDrawing) setIsDrawing(false);
+              if (isDrawingRef.current) {
+                isDrawingRef.current = false;
+                scheduleRedraw(); // discard the in-progress preview
+              }
               if (isDragging) setIsDragging(false);
             }}
             className="m-auto shadow-2xl"

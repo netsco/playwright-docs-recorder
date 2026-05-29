@@ -8,11 +8,11 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 import { FolderOpen } from 'lucide-react';
 
 export default function MoveRecordingModal({ open, onOpenChange, onMove }) {
-  const { state } = useApp();
+  const state = useAppState();
 
   const otherProjects = state.projects.filter(
     (p) => p.id !== state.currentProjectId

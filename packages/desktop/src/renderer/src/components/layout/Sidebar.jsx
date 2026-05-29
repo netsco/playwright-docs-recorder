@@ -16,7 +16,7 @@ import {
 import { cn, getProjectInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 
 export function Sidebar({
   onBackToProjects,
@@ -26,7 +26,7 @@ export function Sidebar({
   onSelectRecording,
   onRecordingAction,
 }) {
-  const { state } = useApp();
+  const state = useAppState();
   const {
     currentProject,
     sidebarCollapsed,
@@ -72,7 +72,7 @@ export function Sidebar({
           <div className="mt-3 flex flex-col gap-1">
             {screenshotPreviews.slice(-5).map((preview, i) => (
               <div
-                key={i}
+                key={preview.filename || i}
                 className="h-6 w-8 overflow-hidden rounded border border-border"
               >
                 <img
@@ -283,7 +283,7 @@ export function Sidebar({
             <div className="flex flex-col gap-1 px-2 pb-2">
               {screenshotPreviews.map((preview, i) => (
                 <div
-                  key={i}
+                  key={preview.filename || i}
                   className="overflow-hidden rounded border border-border"
                 >
                   <img

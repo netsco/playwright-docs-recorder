@@ -12,7 +12,7 @@ import {
   SelectItem,
   SelectValue,
 } from '@/components/ui/select';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 
 const VIEWPORT_PRESETS = {
@@ -38,7 +38,7 @@ function getPresetName(width, height) {
 }
 
 export function WelcomePanel({ onStartRecording }) {
-  const { state } = useApp();
+  const state = useAppState();
   const api = useElectronAPI();
 
   const project = state.currentProject;

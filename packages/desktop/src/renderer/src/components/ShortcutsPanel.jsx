@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 
 const SHORTCUTS = [
   { keys: 'Ctrl+Shift+S', action: 'Screenshot' },
@@ -29,7 +29,7 @@ export function ShortcutsPanel({
   onNoteScreenshot,
   onClearHighlight,
 }) {
-  const { state } = useApp();
+  const state = useAppState();
   const { showShortcuts, isRecording } = state;
 
   const [position, setPosition] = useState({ x: -1, y: -1 });

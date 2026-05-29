@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Minus, Square, X, Copy, PanelLeft } from 'lucide-react';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
-import { useApp } from '@/context/AppContext';
+import { useAppState, useAppDispatch } from '@/context/AppContext';
 import { TitlebarMenu } from './TitlebarMenu';
 
 export function Titlebar({ onNewRecording, onImportProject, onExportProject }) {
   const api = useElectronAPI();
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const [isMaximized, setIsMaximized] = useState(false);
   const platform = api?.platform || 'win32';
 

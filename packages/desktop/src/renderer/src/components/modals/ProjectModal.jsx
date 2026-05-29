@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 import { FolderOpen, Trash2 } from 'lucide-react';
 
@@ -44,7 +44,7 @@ const VIEWPORT_PRESETS = [
 ];
 
 export default function ProjectModal({ open, onOpenChange, editingProjectId, onSave, onDelete }) {
-  const { state } = useApp();
+  const state = useAppState();
   const electronAPI = useElectronAPI();
 
   const isEditing = !!editingProjectId;

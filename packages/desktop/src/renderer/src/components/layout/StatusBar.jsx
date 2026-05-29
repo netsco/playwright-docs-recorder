@@ -1,11 +1,12 @@
 import { Monitor, List, Keyboard, Download, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useApp } from '@/context/AppContext';
+import { useAppState, useAppDispatch } from '@/context/AppContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function StatusBar() {
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const {
     statusText,
     isRecording,

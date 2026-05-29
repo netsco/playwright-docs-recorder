@@ -1,10 +1,11 @@
 import { Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useApp } from '@/context/AppContext';
+import { useAppState, useAppDispatch } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 
 export function ThemeToggle() {
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const api = useElectronAPI();
 
   const toggleTheme = async () => {

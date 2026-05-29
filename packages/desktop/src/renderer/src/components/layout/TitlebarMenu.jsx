@@ -18,11 +18,12 @@ import {
   Info,
   Check,
 } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
+import { useAppState, useAppDispatch } from '@/context/AppContext';
 import { useElectronAPI } from '@/hooks/useElectronAPI';
 
 export function TitlebarMenu({ onNewRecording, onImportProject, onExportProject }) {
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const api = useElectronAPI();
   const [isOpen, setIsOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(null);

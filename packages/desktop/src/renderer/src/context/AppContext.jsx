@@ -1,4 +1,8 @@
-import { createContext, useContext, useReducer, useMemo } from 'react';
+import { createContext, useContext, useReducer } from 'react';
+
+// Max action-log entries kept in memory. A long recording would otherwise grow
+// this array unbounded and force ActionLog to re-map the whole list each entry.
+const MAX_LOG_ENTRIES = 500;
 
 const initialState = {
   // View state
@@ -36,6 +40,7 @@ const initialState = {
 
   // Action log
   logEntries: [],
+  logIdSeq: 0,
 
   // Status
   statusText: 'Ready',
@@ -158,8 +163,20 @@ function appReducer(state, action) {
       return { ...state, editorImageRevision: state.editorImageRevision + 1 };
 
     // Log and screenshots
-    case 'ADD_LOG_ENTRY':
-      return { ...state, logEntries: [...state.logEntries, action.payload] };
+    case 'ADD_LOG_ENTRY': {
+      // Assign a stable id for React keys, and cap the list to bound memory.
+      const id = state.logIdSeq + 1;
+      const entry = { id, ...action.payload };
+      const next = [...state.logEntries, entry];
+      return {
+        ...state,
+        logEntries:
+          next.length > MAX_LOG_ENTRIES
+            ? next.slice(next.length - MAX_LOG_ENTRIES)
+            : next,
+        logIdSeq: id,
+      };
+    }
 
     case 'ADD_SCREENSHOT_PREVIEW':
       return {
@@ -330,20 +347,44 @@ function appReducer(state, action) {
   }
 }
 
-const AppContext = createContext(null);
+// Split state and dispatch into separate contexts. `dispatch` is stable for the
+// lifetime of the provider, so its context value never changes — components that
+// only dispatch never re-render on state updates. Only `useAppState()` consumers
+// re-render when state changes.
+const AppStateContext = createContext(null);
+const AppDispatchContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  const value = useMemo(() => ({ state, dispatch }), [state]);
-
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppDispatchContext.Provider value={dispatch}>
+      <AppStateContext.Provider value={state}>
+        {children}
+      </AppStateContext.Provider>
+    </AppDispatchContext.Provider>
+  );
 }
 
-export function useApp() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
+export function useAppState() {
+  const state = useContext(AppStateContext);
+  if (state === null) {
+    throw new Error('useAppState must be used within an AppProvider');
   }
-  return context;
+  return state;
+}
+
+export function useAppDispatch() {
+  const dispatch = useContext(AppDispatchContext);
+  if (dispatch === null) {
+    throw new Error('useAppDispatch must be used within an AppProvider');
+  }
+  return dispatch;
+}
+
+// Convenience combiner for components that need both. Note: this subscribes to
+// state, so dispatch-only components should prefer useAppDispatch() to stay
+// isolated from state-change re-renders.
+export function useApp() {
+  return { state: useAppState(), dispatch: useAppDispatch() };
 }

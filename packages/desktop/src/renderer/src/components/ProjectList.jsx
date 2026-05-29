@@ -1,9 +1,9 @@
 import { Plus, FolderOpen, Pencil, Folder, Upload, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useApp } from '@/context/AppContext';
+import { useAppState } from '@/context/AppContext';
 
 export function ProjectList({ onSelectProject, onNewProject, onEditProject, onOpenFolder, onExportProject, onImportProject }) {
-  const { state } = useApp();
+  const state = useAppState();
   const projects = state.projects;
 
   const formatDate = (dateStr) => {

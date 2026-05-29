@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ZoomSelect } from '@/components/ZoomSelect';
-import { useApp } from '@/context/AppContext';
+import { useAppState, useAppDispatch } from '@/context/AppContext';
 
 export function StepsEditor({
   onSave,
@@ -28,20 +28,29 @@ export function StepsEditor({
   zoomMode,
   onZoomChange,
 }) {
-  const { state, dispatch } = useApp();
+  const state = useAppState();
+  const dispatch = useAppDispatch();
   const { stepsActions, stepsOriginalActions, stepsReplaying } = state;
 
   // Filter to screenshot + note steps, tracking realIndex
-  const steps = stepsActions
-    .map((action, i) => ({ ...action, realIndex: i }))
-    .filter((a) => a.type === 'screenshot' || a.type === 'note');
+  const steps = useMemo(
+    () =>
+      stepsActions
+        .map((action, i) => ({ ...action, realIndex: i }))
+        .filter((a) => a.type === 'screenshot' || a.type === 'note'),
+    [stepsActions]
+  );
 
   // Current step index within filtered steps
   const currentStepIdx = steps.findIndex((s) => s.realIndex === selectedRealIndex);
   const currentStep = currentStepIdx >= 0 ? steps[currentStepIdx] : null;
 
-  const hasChanges =
-    JSON.stringify(stepsActions) !== JSON.stringify(stepsOriginalActions);
+  // Dirty check via serialization; memoized so it doesn't run on every render
+  // (e.g. on replay/selection changes that leave the actions untouched).
+  const hasChanges = useMemo(
+    () => JSON.stringify(stepsActions) !== JSON.stringify(stepsOriginalActions),
+    [stepsActions, stepsOriginalActions]
+  );
 
   // Navigation
   const goToPrev = useCallback(() => {
