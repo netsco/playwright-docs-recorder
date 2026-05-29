@@ -1,5 +1,16 @@
 # @doc-recorder/desktop
 
+## 0.12.1
+
+### Patch Changes
+
+- Reduce renderer re-renders by splitting the app context into separate
+  state and dispatch contexts, memoizing dirty-checks in the steps editor,
+  and moving the screenshot editor's draw gesture to refs with a
+  requestAnimationFrame-throttled redraw. Action-log and screenshot-preview
+  lists now use stable keys, and the action log is capped at 500 entries to
+  bound memory during long recordings.
+
 ## 0.12.0
 
 ### Minor Changes
