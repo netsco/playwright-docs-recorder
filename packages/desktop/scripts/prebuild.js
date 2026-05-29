@@ -31,7 +31,8 @@ const dependencies = [
   'env-paths',
   'json-schema-typed',
   'debounce-fn',
-  'mimic-fn',
+  // mimic-fn is no longer hoisted to the root; it ships nested under conf/
+  // and debounce-fn/, which are copied with their nested node_modules.
   'onetime',
   'semver',
   'pkg-up',
@@ -70,16 +71,14 @@ const dependencies = [
   'debug',
   'ms',
 
-  // sharp (native image processing) and dependencies
+  // sharp (native image processing) and dependencies.
+  // sharp >=0.34 dropped its `color` dependency, so color/color-string/
+  // simple-swizzle/is-arrayish are no longer part of the tree.
   'sharp',
   '@img',
-  'color',
-  'color-string',
   'color-convert',
   'color-name',
   'detect-libc',
-  'simple-swizzle',
-  'is-arrayish',
 ];
 
 function copyRecursiveSync(src, dest) {
