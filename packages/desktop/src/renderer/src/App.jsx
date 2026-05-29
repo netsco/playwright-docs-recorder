@@ -96,6 +96,9 @@ function AppContent() {
           dispatch({ type: 'SET_THEME', payload: settings.theme });
         }
 
+        // Apply persisted zoom mode
+        dispatch({ type: 'SET_ZOOM_MODE', payload: settings.zoomMode ?? 'fit' });
+
         // Sync title bar overlay colors with theme
         if (api.updateTitleBarOverlay) {
           const isDark = (settings.theme || 'dark') === 'dark';
@@ -353,6 +356,14 @@ function AppContent() {
       setTimeout(startAfterLoad, 2000);
     },
     [api, state.currentProjectId, dispatch]
+  );
+
+  const handleZoomChange = useCallback(
+    (mode) => {
+      dispatch({ type: 'SET_ZOOM_MODE', payload: mode });
+      api.saveSettings({ zoomMode: mode });
+    },
+    [api, dispatch]
   );
 
   const handleStopRecording = useCallback(async () => {
@@ -1595,6 +1606,8 @@ function AppContent() {
             webviewRef={webviewRef}
             onStopRecording={handleStopRecording}
             currentUrl={currentUrl}
+            zoomMode={state.zoomMode}
+            onZoomChange={handleZoomChange}
           />
         )}
 
@@ -1608,6 +1621,8 @@ function AppContent() {
             onSelectStep={handleSelectStep}
             onEditNote={handleEditStepNote}
             selectedRealIndex={selectedStepRealIndex}
+            zoomMode={state.zoomMode}
+            onZoomChange={handleZoomChange}
           />
         )}
 
@@ -1637,6 +1652,7 @@ function AppContent() {
               <WebviewContainer
                 ref={webviewRef}
                 viewport={currentViewport}
+                zoomMode={state.zoomMode}
                 isRecording={state.isRecording || state.isEditingSteps}
                 recordActions={state.isEditingSteps ? false : state.currentRecordActions}
                 customCSS={state.isEditingSteps ? '' : state.currentCustomCSS}

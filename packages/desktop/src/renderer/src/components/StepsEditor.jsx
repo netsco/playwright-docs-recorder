@@ -14,6 +14,7 @@ import {
   MessageSquareText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ZoomSelect } from '@/components/ZoomSelect';
 import { useApp } from '@/context/AppContext';
 
 export function StepsEditor({
@@ -24,6 +25,8 @@ export function StepsEditor({
   onSelectStep,
   onEditNote,
   selectedRealIndex,
+  zoomMode,
+  onZoomChange,
 }) {
   const { state, dispatch } = useApp();
   const { stepsActions, stepsOriginalActions, stepsReplaying } = state;
@@ -226,6 +229,14 @@ export function StepsEditor({
         >
           <Trash2 className="h-3 w-3" />
         </Button>
+      </div>
+
+      {/* Separator */}
+      <div className="h-5 w-px bg-border shrink-0" />
+
+      {/* Zoom control */}
+      <div className="shrink-0">
+        <ZoomSelect zoomMode={zoomMode} onZoomChange={onZoomChange} />
       </div>
 
       {/* Separator */}

@@ -1,8 +1,9 @@
 import { ChevronLeft, ChevronRight, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ZoomSelect } from '@/components/ZoomSelect';
 
-export function Toolbar({ webviewRef, onStopRecording, currentUrl }) {
+export function Toolbar({ webviewRef, onStopRecording, currentUrl, zoomMode, onZoomChange }) {
   const handleBack = () => {
     if (webviewRef?.current) {
       webviewRef.current.goBack();
@@ -63,6 +64,9 @@ export function Toolbar({ webviewRef, onStopRecording, currentUrl }) {
           title={currentUrl}
         />
       </div>
+
+      {/* Zoom control */}
+      <ZoomSelect zoomMode={zoomMode} onZoomChange={onZoomChange} />
 
       {/* Stop recording button */}
       <Button

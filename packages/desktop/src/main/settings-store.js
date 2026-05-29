@@ -31,7 +31,8 @@ function initSettingsStore() {
       injectCSS: false,
       customCSS: '',
       lastOpenedProjectId: null,
-      theme: 'light'
+      theme: 'light',
+      zoomMode: 'fit'
     }
   });
   return store;

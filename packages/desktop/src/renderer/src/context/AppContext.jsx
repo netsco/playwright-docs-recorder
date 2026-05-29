@@ -16,6 +16,7 @@ const initialState = {
   currentRecordActions: true,
   currentCustomCSS: '',
   currentViewport: null,
+  zoomMode: 'fit', // 'fit' | '100' | '75' | '50' | '25'
 
   // Settings
   settings: null,
@@ -115,6 +116,9 @@ function appReducer(state, action) {
         currentCustomCSS: action.payload.customCSS ?? state.currentCustomCSS,
         currentViewport: action.payload.viewport ?? state.currentViewport,
       };
+
+    case 'SET_ZOOM_MODE':
+      return { ...state, zoomMode: action.payload };
 
     case 'INCREMENT_ACTION':
       return { ...state, actionCount: state.actionCount + 1 };

@@ -4,6 +4,7 @@ import { useElectronAPI } from '@/hooks/useElectronAPI';
 export const WebviewContainer = forwardRef(function WebviewContainer(props, ref) {
   const {
     viewport,
+    zoomMode = 'fit',
     isRecording,
     recordActions,
     customCSS,
@@ -16,11 +17,15 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
   } = props;
 
   const containerRef = useRef(null);
+  const sizerRef = useRef(null);
   const webviewRef = useRef(null);
   const listenersRef = useRef([]);
   const domReadyRef = useRef(false);
   const api = useElectronAPI();
   const [isLoading, setIsLoading] = useState(false);
+  // Visual scale of the webview. Does NOT change recording resolution — the
+  // webview keeps its viewport width/height; this is a host-side CSS transform.
+  const [scale, setScale] = useState(1);
 
   // Stable callback refs to avoid re-creating webview on prop changes
   const callbacksRef = useRef({
@@ -48,8 +53,8 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
 
   // Create webview element on mount
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || webviewRef.current) return;
+    const sizer = sizerRef.current;
+    if (!sizer || webviewRef.current) return;
 
     const webview = document.createElement('webview');
     const preloadPath = api.getWebviewPreloadPath();
@@ -60,6 +65,8 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
     webview.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
     webview.style.borderRadius = '2px';
     webview.style.display = 'inline-flex';
+    // Scale visually from the top-left so it pairs with the sizer's footprint.
+    webview.style.transformOrigin = 'top left';
 
     // Apply initial viewport size
     if (viewport) {
@@ -76,7 +83,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       webview.setAttribute('src', fullUrl);
     }
 
-    container.appendChild(webview);
+    sizer.appendChild(webview);
     webviewRef.current = webview;
 
     // Helper to add event listeners and track them for cleanup
@@ -191,15 +198,48 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       }
       listenersRef.current = [];
 
-      if (container.contains(webview)) {
-        container.removeChild(webview);
+      if (sizer.contains(webview)) {
+        sizer.removeChild(webview);
       }
       webviewRef.current = null;
       domReadyRef.current = false;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update webview size when viewport changes
+  // Compute the visual scale from the zoom mode. For 'fit', derive it from the
+  // available container size; for numeric modes use the percentage directly.
+  // Recomputed on zoom/viewport change and whenever the container resizes.
+  useEffect(() => {
+    if (!viewport) return;
+
+    const computeScale = () => {
+      if (zoomMode !== 'fit') {
+        const pct = Number(zoomMode);
+        return Number.isFinite(pct) && pct > 0 ? pct / 100 : 1;
+      }
+      const container = containerRef.current;
+      if (!container) return 1;
+      const pad = 32; // matches container p-4 (16px each side)
+      const cw = container.clientWidth - pad;
+      const ch = container.clientHeight - pad;
+      if (cw <= 0 || ch <= 0) return 1;
+      // Cap at 1 so Fit never upscales (matches ScreenshotEditor behavior).
+      return Math.min(cw / viewport.width, ch / viewport.height, 1);
+    };
+
+    setScale(computeScale());
+
+    // Only fit-to-window needs to react to container resizes.
+    if (zoomMode !== 'fit' || typeof ResizeObserver === 'undefined') return;
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => setScale(computeScale()));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [zoomMode, viewport]);
+
+  // Apply viewport size + visual scale to the webview, and size the sizer
+  // wrapper to the scaled footprint so centering/scroll behave correctly.
   useEffect(() => {
     const webview = webviewRef.current;
     if (!webview || !viewport) return;
@@ -207,7 +247,14 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
     webview.style.height = `${viewport.height}px`;
     webview.style.minWidth = `${viewport.width}px`;
     webview.style.minHeight = `${viewport.height}px`;
-  }, [viewport]);
+    webview.style.transform = `scale(${scale})`;
+
+    const sizer = sizerRef.current;
+    if (sizer) {
+      sizer.style.width = `${viewport.width * scale}px`;
+      sizer.style.height = `${viewport.height * scale}px`;
+    }
+  }, [viewport, scale]);
 
   // Notify webview when recording state changes
   useEffect(() => {
@@ -351,6 +398,9 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
         backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
       }}
     >
+      {/* Sizer takes the scaled footprint; the webview is scaled inside it */}
+      <div ref={sizerRef} className="shrink-0 relative" />
+
       {isLoading && (
         <div className="absolute inset-0 bg-background/90 flex flex-col items-center justify-center gap-4 z-10">
           <div className="w-8 h-8 border-2 border-border border-t-teal-500 rounded-full animate-spin" />
