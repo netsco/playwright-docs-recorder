@@ -43,6 +43,6 @@
     ]
   },
   "dependencies": {
-    "electron": "40.0.0"
+    "electron": "^40.10.2"
   }
 }
