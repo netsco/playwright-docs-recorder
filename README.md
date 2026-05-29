@@ -30,6 +30,7 @@ Features:
 - Visual recording controls with start/stop buttons
 - URL history and recent recordings sidebar
 - Viewport presets (WSXGA+, Full HD, HD, Mobile, Mobile Landscape, Tablet, Tablet Landscape, Custom)
+- Zoom control (fit-to-window / percentage) to view large viewports without changing recording resolution
 - Screenshots-only mode (skip recording clicks/form inputs)
 - Custom CSS injection (hide cookie banners, popups, etc.)
 - Refetch screenshots from existing recordings
@@ -41,6 +42,7 @@ Features:
 - Steps editor: navigate, insert, retake, delete screenshots and edit notes on existing recordings
 - Per-project auth state persistence for login-required sites
 - Custom titlebar with hamburger menu and sidebar toggle
+- About dialog with in-app update checking
 
 ## CLI Usage
 
