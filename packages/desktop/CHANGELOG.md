@@ -1,5 +1,15 @@
 # @doc-recorder/desktop
 
+## 0.12.0
+
+### Minor Changes
+
+- Add a zoom control (fit-to-window / percentage) to the recording view so
+  large viewport resolutions are fully visible without changing the recorded
+  resolution. The chosen zoom is persisted across sessions. Also remediated
+  npm dependency advisories (electron and transitive deps) and added an About
+  dialog with in-app update checking.
+
 ## 0.11.0
 
 ### Minor Changes
