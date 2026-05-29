@@ -16,3 +16,11 @@ repositories_releases_are_immutable = "off"
 # via a repository ruleset.
 repositories_pull_requests_require_reviews = "off"
 repositories_commits_are_signed = "off"
+
+# release-desktop.yml must publish GitHub Release assets via electron-builder,
+# which requires `contents: write` on the GITHUB_TOKEN — there is no way to
+# publish a release without it. Write is already scoped to the single publishing
+# job (the workflow default and ci.yml are `contents: read`), so the blast radius
+# is minimal, but moat flags any write grant. Waived as unavoidable for a
+# release-publishing workflow.
+repositories_workflow_permissions_are_restricted = "off"
