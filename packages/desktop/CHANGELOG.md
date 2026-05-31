@@ -1,5 +1,27 @@
 # @doc-recorder/desktop
 
+## 0.12.2
+
+### Patch Changes
+
+- 51cf8de: Upgrade Vite 7→8 (rolldown) and @vitejs/plugin-react 5→6. The whole
+  toolchain (vitest, @tailwindcss/vite, plugin-react) supports Vite 8, so
+  the earlier hold is lifted; the root `overrides` is repointed to Vite 8
+  to keep a single Vite version across the workspace and avoid a split
+  install. Verified with a full signed build and a packed-binary boot.
+- 3febc6e: Upgrade electron-store from v8 to v11. Since v9+ is ESM-only, the main
+  process now loads it via a dynamic `import()` in an async
+  `initSettingsStore()` (awaited during app startup) instead of a top-level
+  `require()`. The electron-builder bundling list in `scripts/prebuild.js`
+  was regenerated for the new conf v15 dependency tree. No user-facing
+  behaviour change; verified with a full signed build and a packed-binary
+  boot.
+- fe31f19: Update dependencies: Electron 40→42, marked 17→18, lucide-react 0→1,
+  electron-updater 6.8.3, sharp 0.34.5, Playwright 1.60, ESLint 10, and
+  other dev tooling. The `scripts/prebuild.js` bundling list was updated for
+  sharp 0.34's dropped `color` dependency. (`electron-store` and `vite` were
+  bumped separately in this release — see the entries above.)
+
 ## 0.12.1
 
 ### Patch Changes
