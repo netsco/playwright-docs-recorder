@@ -88,8 +88,8 @@ if (!gotTheLock) {
     }
   });
 
-  app.whenReady().then(() => {
-    initSettingsStore();
+  app.whenReady().then(async () => {
+    await initSettingsStore();
     registerIpcHandlers();
     createWindow();
     initAutoUpdater(mainWindow);

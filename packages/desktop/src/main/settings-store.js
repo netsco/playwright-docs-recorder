@@ -1,4 +1,3 @@
-const Store = require('electron-store');
 const path = require('path');
 const { app } = require('electron');
 
@@ -6,9 +5,13 @@ let store = null;
 
 /**
  * Initialize the settings store.
- * Must be called after app.whenReady()
+ * Must be called (and awaited) after app.whenReady().
+ *
+ * electron-store v9+ is ESM-only, so it is loaded via a dynamic import()
+ * from this CommonJS module rather than a top-level require().
  */
-function initSettingsStore() {
+async function initSettingsStore() {
+  const { default: Store } = await import('electron-store');
   store = new Store({
     name: 'settings',
     defaults: {
