@@ -27,13 +27,13 @@
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "@eslint/js": "^10.0.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^10.4.0",
     "globals": "^17.6.0",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
-    "lint-staged": "^17.0.5",
-    "memfs": "^4.57.3",
+    "lint-staged": "^17.0.7",
+    "memfs": "^4.57.6",
     "vitest": "^4.0.18"
   },
   "lint-staged": {
@@ -43,7 +43,7 @@
     ]
   },
   "dependencies": {
-    "electron": "^42.3.0"
+    "electron": "^42.3.3"
   },
   "overrides": {
     "vite": "^8.0.14"
