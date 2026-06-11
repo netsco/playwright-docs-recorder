@@ -315,7 +315,7 @@ function registerIpcHandlers() {
 
   // ===== Screenshot Capture =====
 
-  ipcMain.handle('capture-screenshot', async (event, { selector, note, fullPage = false, imageDataUrl, highlightOverlay, pageTitle }) => {
+  ipcMain.handle('capture-screenshot', async (event, { selector, note, fullPage = false, imageDataUrl, highlightOverlay, captureRegion, pageTitle }) => {
     if (!currentRecording) {
       return { success: false, error: 'No recording in progress' };
     }
@@ -357,6 +357,9 @@ function registerIpcHandlers() {
       const screenshotData = { filename, highlight: selector, note, fullPage, pageTitle };
       if (highlightOverlay) {
         screenshotData.highlightOverlay = highlightOverlay;
+      }
+      if (captureRegion) {
+        screenshotData.captureRegion = captureRegion;
       }
       currentRecording.screenshots.push(screenshotData);
       const action = { type: 'screenshot', ...screenshotData };
@@ -528,7 +531,7 @@ function registerIpcHandlers() {
 
   // ===== Refetch =====
 
-  ipcMain.handle('save-refetched-screenshot', async (event, { recordingId, filename, imageDataUrl, highlightOverlay, projectId }) => {
+  ipcMain.handle('save-refetched-screenshot', async (event, { recordingId, filename, imageDataUrl, highlightOverlay, captureRegion, projectId }) => {
     const settings = getSettingsStore();
     const outputDir = settings.get('outputDir');
 
@@ -565,7 +568,10 @@ function registerIpcHandlers() {
           console.warn(`Failed to bake highlight overlay on refetch: ${err.message}`);
         }
 
-        // Update actions.json with highlightOverlay
+      }
+
+      // Persist resolved highlightOverlay / captureRegion back to actions.json
+      if (highlightOverlay || captureRegion) {
         try {
           const actionsPath = path.join(recordingDir, 'actions.json');
           if (fs.existsSync(actionsPath)) {
@@ -574,13 +580,21 @@ function registerIpcHandlers() {
             const screenshotAction = actions.find(
               a => a.type === 'screenshot' && a.filename === filename
             );
-            if (screenshotAction && !screenshotAction.highlightOverlay) {
+            let changed = false;
+            if (screenshotAction && highlightOverlay && !screenshotAction.highlightOverlay) {
               screenshotAction.highlightOverlay = highlightOverlay;
+              changed = true;
+            }
+            if (screenshotAction && captureRegion) {
+              screenshotAction.captureRegion = captureRegion;
+              changed = true;
+            }
+            if (changed) {
               fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
             }
           }
         } catch (err) {
-          console.warn(`Failed to update actions.json with highlightOverlay: ${err.message}`);
+          console.warn(`Failed to update actions.json after refetch: ${err.message}`);
         }
       }
 

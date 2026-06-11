@@ -16,9 +16,11 @@ const SHORTCUTS = [
   { keys: 'Ctrl+Shift+K', action: 'Screenshot + Note' },
   { keys: 'Ctrl+Shift+F', action: 'Full Page Screenshot' },
   { keys: 'Ctrl+Shift+H', action: 'Record Hover' },
-  { keys: 'Ctrl+Shift+X', action: 'Clear Highlight' },
+  { keys: 'Ctrl+Shift+X', action: 'Clear Highlight/Region' },
   { keys: 'Ctrl+Click', action: 'Highlight Element' },
   { keys: 'Ctrl+Hover', action: 'Preview Highlight' },
+  { keys: 'Alt+Click', action: 'Set Capture Region' },
+  { keys: 'Alt+Hover', action: 'Preview Region' },
   { keys: 'Ctrl+C', action: 'Stop & Save' },
 ];
 

@@ -6,6 +6,8 @@ let highlighted = null;
 let isCtrlHeld = false;
 let hoverHighlighted = null; // Temporary highlight during Ctrl+hover
 let injectedCustomCSS = null; // Custom CSS to inject
+let isAltHeld = false; // Alt key held (capture-region mode)
+let captureRegion = null; // Element selected as the capture region (Alt+Click)
 
 // Listen for recording state changes from renderer
 ipcRenderer.on('recording-started', () => {
@@ -17,7 +19,10 @@ ipcRenderer.on('recording-stopped', () => {
   isRecording = false;
   highlighted = null;
   hoverHighlighted = null;
+  captureRegion = null;
   hideOverlay();
+  hideRegionMask();
+  hideRegionPreview();
   console.log('[DocRecorder] Recording stopped');
 });
 
@@ -27,7 +32,12 @@ ipcRenderer.on('clear-highlight', () => {
   hideOverlay();
   hideHoverOverlay();
   ipcRenderer.sendToHost('highlight-changed', null);
-  console.log('[DocRecorder] Highlight cleared');
+  // Also clear any active capture region
+  captureRegion = null;
+  hideRegionMask();
+  hideRegionPreview();
+  ipcRenderer.sendToHost('region-changed', null);
+  console.log('[DocRecorder] Highlight and capture region cleared');
 });
 
 // Listen for screenshot requests from renderer
@@ -160,6 +170,28 @@ function injectRecorderUI() {
     display: none; transition: all 0.05s ease-out;
   `;
   document.body.appendChild(hoverOverlay);
+
+  // Capture-region mask: dims everything outside the selected element using a
+  // huge box-shadow spread. The element's own rect stays clear ("the hole").
+  const regionMask = document.createElement('div');
+  regionMask.id = '__region-mask';
+  regionMask.style.cssText = `
+    position: fixed; pointer-events: none; z-index: 999997;
+    border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+    display: none; transition: all 0.08s ease-out;
+  `;
+  document.body.appendChild(regionMask);
+
+  // Region preview (temporary during Alt+hover)
+  const regionPreview = document.createElement('div');
+  regionPreview.id = '__region-preview';
+  regionPreview.style.cssText = `
+    position: fixed; pointer-events: none; z-index: 999998;
+    border: 2px dashed #3b82f6; background: rgba(59,130,246,0.08);
+    border-radius: 4px;
+    display: none; transition: all 0.05s ease-out;
+  `;
+  document.body.appendChild(regionPreview);
 }
 
 // ===== Overlay Functions =====
@@ -202,13 +234,56 @@ function hideHoverOverlay() {
   if (overlay) overlay.style.display = 'none';
 }
 
+function showRegionMask(el) {
+  const mask = document.getElementById('__region-mask');
+  if (!mask || !el) return;
+
+  const rect = el.getBoundingClientRect();
+  Object.assign(mask.style, {
+    display: 'block',
+    top: rect.top + 'px',
+    left: rect.left + 'px',
+    width: rect.width + 'px',
+    height: rect.height + 'px'
+  });
+}
+
+function hideRegionMask() {
+  const mask = document.getElementById('__region-mask');
+  if (mask) mask.style.display = 'none';
+}
+
+function showRegionPreview(el) {
+  const overlay = document.getElementById('__region-preview');
+  if (!overlay || !el) return;
+
+  const rect = el.getBoundingClientRect();
+  Object.assign(overlay.style, {
+    display: 'block',
+    top: (rect.top - 2) + 'px',
+    left: (rect.left - 2) + 'px',
+    width: (rect.width + 4) + 'px',
+    height: (rect.height + 4) + 'px'
+  });
+}
+
+function hideRegionPreview() {
+  const overlay = document.getElementById('__region-preview');
+  if (overlay) overlay.style.display = 'none';
+}
+
 // ===== Event Handlers =====
 
 function setupEventListeners() {
-  // Track Ctrl key state
+  // Track Ctrl / Alt key state
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Control' && isRecording) {
       isCtrlHeld = true;
+      document.body.style.cursor = 'crosshair';
+    }
+
+    if (e.key === 'Alt' && isRecording) {
+      isAltHeld = true;
       document.body.style.cursor = 'crosshair';
     }
 
@@ -233,13 +308,17 @@ function setupEventListeners() {
       ipcRenderer.sendToHost('request-screenshot', { selector: sel, note: null, withNote: false, fullPage: true });
     }
 
-    // X = Clear highlight
+    // X = Clear highlight and capture region
     if (code === 'KeyX') {
       e.preventDefault();
       e.stopPropagation();
       highlighted = null;
       hideOverlay();
       ipcRenderer.sendToHost('highlight-changed', null);
+      captureRegion = null;
+      hideRegionMask();
+      hideRegionPreview();
+      ipcRenderer.sendToHost('region-changed', null);
     }
 
     // K = Screenshot with note
@@ -282,15 +361,29 @@ function setupEventListeners() {
   document.addEventListener('keyup', (e) => {
     if (e.key === 'Control') {
       isCtrlHeld = false;
-      document.body.style.cursor = '';
+      if (!isAltHeld) document.body.style.cursor = '';
       hideHoverOverlay();
       hoverHighlighted = null;
     }
+    if (e.key === 'Alt') {
+      isAltHeld = false;
+      if (!isCtrlHeld) document.body.style.cursor = '';
+      hideRegionPreview();
+    }
   });
 
-  // Ctrl+Hover to preview highlight
+  // Ctrl+Hover to preview highlight, Alt+Hover to preview capture region
   document.addEventListener('mousemove', (e) => {
-    if (!isRecording || !isCtrlHeld) return;
+    if (!isRecording) return;
+
+    if (isAltHeld) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!el || el.id?.startsWith('__')) return;
+      showRegionPreview(el);
+      return;
+    }
+
+    if (!isCtrlHeld) return;
 
     const el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el || el === hoverHighlighted) return;
@@ -302,10 +395,35 @@ function setupEventListeners() {
     showHoverOverlay(el);
   });
 
-  // Ctrl+Click = lock highlight
+  // Alt+Click = set capture region, Ctrl+Click = lock highlight
   document.addEventListener('click', (e) => {
     const el = e.target;
     const sel = getSelector(el);
+
+    // Alt+Click = toggle capture region (dim everything outside this element)
+    if (e.altKey && el && !el.id?.startsWith('__') && isRecording) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (captureRegion === el) {
+        captureRegion = null;
+        hideRegionMask();
+        ipcRenderer.sendToHost('region-changed', null);
+      } else {
+        captureRegion = el;
+        showRegionMask(el);
+        hideRegionPreview();
+        const rect = el.getBoundingClientRect();
+        ipcRenderer.sendToHost('region-changed', {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          selector: getSelector(el)
+        });
+      }
+      return;
+    }
 
     // Ctrl+Click = toggle permanent highlight
     if (e.ctrlKey && sel && !sel.includes('__') && isRecording) {
@@ -347,6 +465,15 @@ function setupEventListeners() {
     }
   }, true);
 
+  // Keep the capture-region dim hole aligned with its element during any
+  // scrolling (capture phase catches nested scroll containers, which don't
+  // bubble) and on resize / layout changes.
+  const realignRegionMask = () => {
+    if (captureRegion) showRegionMask(captureRegion);
+  };
+  window.addEventListener('scroll', realignRegionMask, { capture: true, passive: true });
+  window.addEventListener('resize', realignRegionMask);
+
   // Record scroll events (debounced)
   let scrollTimeout = null;
   window.addEventListener('scroll', () => {
@@ -362,11 +489,13 @@ function setupEventListeners() {
     }, 150);
   }, { passive: true });
 
-  // Handle window blur (user left the page while holding Ctrl)
+  // Handle window blur (user left the page while holding Ctrl/Alt)
   window.addEventListener('blur', () => {
     isCtrlHeld = false;
+    isAltHeld = false;
     document.body.style.cursor = '';
     hideHoverOverlay();
+    hideRegionPreview();
     hoverHighlighted = null;
   });
 }

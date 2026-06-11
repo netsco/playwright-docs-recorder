@@ -98,6 +98,38 @@ async function refetchScreenshots(recordingDir, options = {}) {
       }
     };
 
+    // Helper to get an element's exact bounding rect for the capture region
+    const getRegionRect = async (selector) => {
+      try {
+        return await page.evaluate((sel) => {
+          let el;
+          if (sel.includes(':text(')) {
+            const match = sel.match(/:text\("([^"]+)"\)/);
+            if (match) {
+              const text = match[1];
+              const tagMatch = sel.match(/^(\w+):/);
+              const tag = tagMatch ? tagMatch[1] : '*';
+              const elements = document.querySelectorAll(tag);
+              el = Array.from(elements).find(e => e.textContent?.trim().includes(text));
+            }
+          } else {
+            el = document.querySelector(sel);
+          }
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return null;
+          return {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          };
+        }, selector);
+      } catch {
+        return null;
+      }
+    };
+
     // Process actions
     const totalActions = actions.filter(a => ['goto', 'screenshot', 'scroll'].includes(a.type)).length;
     let actionIndex = 0;
@@ -125,16 +157,64 @@ async function refetchScreenshots(recordingDir, options = {}) {
         actionIndex++;
         if (onProgress) onProgress(action, actionIndex, totalActions);
 
-        // Resolve highlight element rect if present
+        // Resolve the capture region rect. Prefer re-resolving from the stored
+        // selector (robust to layout shifts); fall back to the stored rect.
+        let captureRegion = action.captureRegion || null;
+        if (captureRegion) {
+          const selector = captureRegion.selector || null;
+          const resolved = selector ? await getRegionRect(selector) : null;
+          captureRegion = resolved
+            ? { ...resolved, selector }
+            : { ...captureRegion };
+        }
+
+        // Resolve highlight element rect if present. A persisted highlightOverlay
+        // is already region-relative; a freshly resolved one is in viewport
+        // coords and must be re-origined to the region below.
         let highlightOverlay = action.highlightOverlay || null;
+        let highlightFreshlyResolved = false;
         if (action.highlight && !highlightOverlay) {
           highlightOverlay = await getHighlightRect(action.highlight);
+          highlightFreshlyResolved = !!highlightOverlay;
+        }
+
+        // A capture region is viewport-based, so it overrides full-page capture.
+        const useFullPage = (action.fullPage || false) && !captureRegion;
+
+        // Build a viewport-clamped clip for the capture region. Using
+        // Playwright's native clip avoids any image-processing dependency
+        // (sharp) and crops directly during capture. Clamping both edges to the
+        // viewport prevents a partially off-screen region from erroring or
+        // pulling in extra pixels.
+        let clip = null;
+        if (captureRegion) {
+          const cx = Math.max(0, captureRegion.x);
+          const cy = Math.max(0, captureRegion.y);
+          const right = Math.min(viewport.width, captureRegion.x + captureRegion.width);
+          const bottom = Math.min(viewport.height, captureRegion.y + captureRegion.height);
+          const w = right - cx;
+          const h = bottom - cy;
+          if (w > 0 && h > 0) {
+            clip = { x: cx, y: cy, width: w, height: h };
+            // Re-origin a freshly resolved highlight to the clip origin so it
+            // bakes correctly onto the cropped image (a persisted overlay is
+            // already region-relative).
+            if (highlightOverlay && highlightFreshlyResolved) {
+              highlightOverlay = {
+                ...highlightOverlay,
+                x: highlightOverlay.x - clip.x,
+                y: highlightOverlay.y - clip.y
+              };
+            }
+          }
         }
 
         // Take clean screenshot (no inline highlight styles)
         const screenshotPath = path.join(screenshotsDir, action.filename);
         try {
-          await page.screenshot({ path: screenshotPath, fullPage: action.fullPage || false });
+          const shotOptions = { path: screenshotPath, fullPage: useFullPage };
+          if (clip) shotOptions.clip = clip;
+          await page.screenshot(shotOptions);
           screenshotCount++;
 
           // Backup original if we have any overlays to bake
@@ -193,6 +273,11 @@ async function refetchScreenshots(recordingDir, options = {}) {
           // Update highlightOverlay in the action for persistence
           if (highlightOverlay && !action.highlightOverlay) {
             action.highlightOverlay = { ...highlightOverlay, selector: action.highlight };
+          }
+
+          // Persist the resolved capture region rect
+          if (captureRegion) {
+            action.captureRegion = captureRegion;
           }
         } catch (error) {
           console.error(`Failed to take screenshot ${action.filename}: ${error.message}`);

@@ -14,6 +14,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
     onRecordAction,
     onScreenshotRequest,
     onHighlightChange,
+    onRegionChange,
     onLoadingChange,
   } = props;
 
@@ -34,6 +35,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
     onRecordAction,
     onScreenshotRequest,
     onHighlightChange,
+    onRegionChange,
     onLoadingChange,
   });
 
@@ -43,6 +45,7 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
       onRecordAction,
       onScreenshotRequest,
       onHighlightChange,
+      onRegionChange,
       onLoadingChange,
     };
   });
@@ -180,6 +183,10 @@ export const WebviewContainer = forwardRef(function WebviewContainer(props, ref)
 
         case 'highlight-changed':
           callbacksRef.current.onHighlightChange?.(args[0]);
+          break;
+
+        case 'region-changed':
+          callbacksRef.current.onRegionChange?.(args[0]);
           break;
 
         default:

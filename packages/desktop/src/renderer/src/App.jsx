@@ -56,6 +56,7 @@ function AppContent() {
   const [selectedStepRealIndex, setSelectedStepRealIndex] = useState(-1);
   const [stepsHighlight, setStepsHighlight] = useState(null);
   const currentHighlightRef = useRef(null);
+  const currentRegionRef = useRef(null);
   const pendingStepNoteIndexRef = useRef(-1);
 
   const hasUnsavedEditorChanges =
@@ -450,34 +451,88 @@ function AppContent() {
           }
         }
 
-        // Hide scrollbars and highlight overlay during capture
+        // Resolve the live capture-region rect. Prefer re-resolving the selected
+        // element from its selector (robust to nested scrolling, resizing, and
+        // layout shifts that the dim mask may not have tracked); fall back to
+        // the mask rect when there's no usable selector.
+        const regionSelector = currentRegionRef.current?.selector || null;
+        let captureRegion = null;
+        if (currentRegionRef.current) {
+          if (regionSelector) {
+            try {
+              captureRegion = await wv.executeJavaScript(
+                `(function(){const sel=${JSON.stringify(regionSelector)};let el;if(sel.includes(':text(')){const m=sel.match(/:text\\("([^"]+)"\\)/);if(m){const t=m[1];const tm=sel.match(/^(\\w+):/);const tag=tm?tm[1]:'*';el=Array.from(document.querySelectorAll(tag)).find(e=>e.textContent&&e.textContent.trim().includes(t));}}else{el=document.querySelector(sel);}if(!el)return null;const r=el.getBoundingClientRect();if(r.width===0||r.height===0)return null;return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)};})()`
+              );
+            } catch {
+              // Ignore errors resolving region rect by selector
+            }
+          }
+          if (!captureRegion) {
+            try {
+              captureRegion = await wv.executeJavaScript(
+                `(function(){const m=document.getElementById('__region-mask');if(!m||m.style.display==='none')return null;const r=m.getBoundingClientRect();if(r.width===0||r.height===0)return null;return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)};})()`
+              );
+            } catch {
+              // Ignore errors reading region rect
+            }
+          }
+        }
+
+        // Carry the region's selector so refetch can re-resolve the element.
+        if (captureRegion) {
+          captureRegion.selector = regionSelector;
+        }
+
+        // A capture region is viewport-based, so it overrides full-page capture.
+        const useFullPage = fullPage && !captureRegion;
+
+        // Hide scrollbars, highlight overlay, and region overlays during capture
         await wv.executeJavaScript(
-          `(function(){const s=document.createElement('style');s.id='__doc-recorder-hide-scrollbars';s.textContent='*::-webkit-scrollbar{display:none!important}*{scrollbar-width:none!important;-ms-overflow-style:none!important}';document.head.appendChild(s);const o=document.getElementById('__highlight-overlay');if(o)o.style.display='none';})()`
+          `(function(){const s=document.createElement('style');s.id='__doc-recorder-hide-scrollbars';s.textContent='*::-webkit-scrollbar{display:none!important}*{scrollbar-width:none!important;-ms-overflow-style:none!important}';document.head.appendChild(s);const o=document.getElementById('__highlight-overlay');if(o)o.style.display='none';const m=document.getElementById('__region-mask');if(m)m.style.display='none';const p=document.getElementById('__region-preview');if(p)p.style.display='none';})()`
         );
 
         let dataUrl;
-        if (fullPage) {
+        if (useFullPage) {
           dataUrl = await captureFullPage(wv);
         } else {
           const image = await wv.capturePage();
           dataUrl = image.toDataURL();
         }
 
-        // Restore scrollbars and highlight overlay
+        // Restore scrollbars, highlight overlay, and region mask (if active)
         await wv
           .executeJavaScript(
-            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
+            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';const m=document.getElementById('__region-mask');if(m)m.style.display='${captureRegion ? 'block' : 'none'}';})()`
           )
           .catch(() => {});
+
+        // Crop to the selected region (DPR-aware) when one is active. The crop
+        // re-origins the image at the region, so make any highlight overlay
+        // region-relative before it gets baked onto the cropped image.
+        if (captureRegion) {
+          if (highlightOverlay) {
+            // Offset by the clamped crop origin (the crop clamps a negative
+            // origin to 0), so the baked highlight lands correctly.
+            const ox = Math.max(0, captureRegion.x);
+            const oy = Math.max(0, captureRegion.y);
+            highlightOverlay = {
+              ...highlightOverlay,
+              x: highlightOverlay.x - ox,
+              y: highlightOverlay.y - oy,
+            };
+          }
+          dataUrl = await cropToRegion(wv, dataUrl, captureRegion);
+        }
 
         const pageTitle = await wv.executeJavaScript('document.title').catch(() => '');
 
         const result = await api.captureScreenshot({
           selector: effectiveSelector,
           note,
-          fullPage,
+          fullPage: useFullPage,
           imageDataUrl: dataUrl,
           highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector: effectiveSelector } : undefined,
+          captureRegion: captureRegion || undefined,
           pageTitle,
         });
 
@@ -485,7 +540,7 @@ function AppContent() {
           dispatch({ type: 'INCREMENT_SCREENSHOT' });
           dispatch({
             type: 'SET_STATUS',
-            payload: `Screenshot saved: ${result.filename}${fullPage ? ' (full page)' : ''}`,
+            payload: `Screenshot saved: ${result.filename}${captureRegion ? ' (region)' : useFullPage ? ' (full page)' : ''}`,
           });
           dispatch({
             type: 'ADD_SCREENSHOT_PREVIEW',
@@ -493,10 +548,10 @@ function AppContent() {
           });
         }
       } catch (error) {
-        // Restore scrollbars and highlight overlay on error
+        // Restore scrollbars, highlight overlay, and region mask on error
         webviewRef.current
           ?.executeJavaScript(
-            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';})()`
+            `(function(){const s=document.getElementById('__doc-recorder-hide-scrollbars');if(s)s.remove();const o=document.getElementById('__highlight-overlay');if(o)o.style.display='block';const m=document.getElementById('__region-mask');if(m&&m.style.width&&m.style.width!=='0px')m.style.display='block';})()`
           )
           .catch(() => {});
         dispatch({
@@ -577,6 +632,46 @@ function AppContent() {
         ctx.drawImage(img, 0, cap.y);
       }
     }
+
+    return canvas.toDataURL('image/png');
+  }, []);
+
+  // Crop a captured viewport image to a CSS-pixel region rect. The captured
+  // image may be at a higher device-pixel ratio than the CSS viewport, so we
+  // derive the scale from the image's natural size vs window.innerWidth/Height.
+  const cropToRegion = useCallback(async (wv, dataUrl, rect) => {
+    const view = await wv.executeJavaScript(
+      `(function(){return{innerWidth:window.innerWidth,innerHeight:window.innerHeight};})()`
+    );
+
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+
+    const scaleX = img.naturalWidth / view.innerWidth;
+    const scaleY = img.naturalHeight / view.innerHeight;
+
+    // Clamp BOTH edges of the region to the image bounds (in image pixels), then
+    // derive width/height from the clamped edges. Clamping only the origin would
+    // keep the full width and pull in extra pixels when the region starts
+    // off-screen (negative x/y).
+    const left = Math.max(0, Math.round(rect.x * scaleX));
+    const top = Math.max(0, Math.round(rect.y * scaleY));
+    const right = Math.min(img.naturalWidth, Math.round((rect.x + rect.width) * scaleX));
+    const bottom = Math.min(img.naturalHeight, Math.round((rect.y + rect.height) * scaleY));
+    const sw = right - left;
+    const sh = bottom - top;
+
+    if (sw <= 0 || sh <= 0) return dataUrl;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, left, top, sw, sh, 0, 0, sw, sh);
 
     return canvas.toDataURL('image/png');
   }, []);
@@ -1170,7 +1265,7 @@ function AppContent() {
       const { viewport: recViewport = { width: 1680, height: 950 }, actions = [] } =
         recording;
       const relevantActions = actions.filter((a) =>
-        ['goto', 'screenshot'].includes(a.type)
+        ['goto', 'screenshot', 'scroll'].includes(a.type)
       );
       if (relevantActions.length === 0) return;
 
@@ -1232,14 +1327,46 @@ function AppContent() {
         for (const action of actionsToProcess) {
           if (action.type === 'goto') {
             await wv.navigateAndWait(action.url);
+          } else if (action.type === 'scroll') {
+            // Replay scroll position so below-the-fold regions/elements resolve
+            // within the captured viewport.
+            try {
+              await wv.executeJavaScript(
+                `window.scrollTo(${Number(action.x) || 0}, ${Number(action.y) || 0})`
+              );
+              // Brief settle for scroll-triggered layout / lazy content
+              await new Promise((r) => setTimeout(r, 150));
+            } catch {
+              // Ignore scroll errors
+            }
           } else if (action.type === 'screenshot') {
+            // Resolve the capture region rect: prefer re-resolving from the
+            // stored selector, fall back to the stored rect.
+            let captureRegion = action.captureRegion || null;
+            if (captureRegion) {
+              const sel = captureRegion.selector || null;
+              let resolved = null;
+              if (sel) {
+                try {
+                  resolved = await wv.executeJavaScript(
+                    `(function(){const sel=${JSON.stringify(sel)};let el;if(sel.includes(':text(')){const m=sel.match(/:text\\("([^"]+)"\\)/);if(m){const t=m[1];const tm=sel.match(/^(\\w+):/);const tag=tm?tm[1]:'*';el=Array.from(document.querySelectorAll(tag)).find(e=>e.textContent&&e.textContent.trim().includes(t));}}else{el=document.querySelector(sel);}if(!el)return null;const r=el.getBoundingClientRect();if(r.width===0||r.height===0)return null;return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)};})()`
+                  );
+                } catch {
+                  // Ignore errors resolving region rect
+                }
+              }
+              captureRegion = resolved ? { ...resolved, selector: sel } : { ...captureRegion };
+            }
+
             // Resolve highlight element rect if present (for non-destructive overlay)
             let highlightOverlay = action.highlightOverlay || null;
+            let highlightFreshlyResolved = false;
             if (action.highlight && !highlightOverlay) {
               try {
                 highlightOverlay = await wv.executeJavaScript(
                   `(function(){const sel=${JSON.stringify(action.highlight)};let el;if(sel.includes(':text(')){const m=sel.match(/:text\\("([^"]+)"\\)/);if(m){const t=m[1];const tm=sel.match(/^(\\w+):/);const tag=tm?tm[1]:'*';el=Array.from(document.querySelectorAll(tag)).find(e=>e.textContent&&e.textContent.trim().includes(t));}}else{el=document.querySelector(sel);}if(!el)return null;const r=el.getBoundingClientRect();if(r.width===0||r.height===0)return null;const cs=window.getComputedStyle(el);return{x:Math.round(r.x-3),y:Math.round(r.y-3),width:Math.round(r.width+6),height:Math.round(r.height+6),borderRadius:Math.round(parseFloat(cs.borderRadius)||4)};})()`
                 );
+                highlightFreshlyResolved = !!highlightOverlay;
               } catch {
                 // Ignore errors resolving highlight rect
               }
@@ -1248,11 +1375,31 @@ function AppContent() {
             // Capture clean screenshot (no highlight overlay in page)
             const image = await wv.capturePage();
             if (!image) continue; // Skip if capture failed
+            let dataUrl = image.toDataURL();
+
+            // Crop to the capture region; re-origin a freshly resolved highlight
+            // so it bakes correctly on the cropped image (a persisted overlay is
+            // already region-relative).
+            if (captureRegion) {
+              if (highlightOverlay && highlightFreshlyResolved) {
+                // Offset by the clamped crop origin to match cropToRegion.
+                const ox = Math.max(0, captureRegion.x);
+                const oy = Math.max(0, captureRegion.y);
+                highlightOverlay = {
+                  ...highlightOverlay,
+                  x: highlightOverlay.x - ox,
+                  y: highlightOverlay.y - oy,
+                };
+              }
+              dataUrl = await cropToRegion(wv, dataUrl, captureRegion);
+            }
+
             await api.saveRefetchedScreenshot({
               recordingId,
               filename: action.filename,
-              imageDataUrl: image.toDataURL(),
+              imageDataUrl: dataUrl,
               highlightOverlay: highlightOverlay ? { ...highlightOverlay, selector: action.highlight } : undefined,
+              captureRegion: captureRegion || undefined,
               projectId: state.currentProjectId,
             });
 
@@ -1695,6 +1842,14 @@ function AppContent() {
                       payload: sel ? `Highlighted: ${sel}` : 'Ready',
                     });
                   }
+                }}
+                onRegionChange={(rect) => {
+                  if (state.isEditingSteps) return;
+                  currentRegionRef.current = rect;
+                  dispatch({
+                    type: 'SET_STATUS',
+                    payload: rect ? 'Capture region set' : 'Ready',
+                  });
                 }}
               />
               {state.isEditingSteps && state.stepsReplaying && (
