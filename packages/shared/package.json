@@ -15,8 +15,8 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "playwright": "^1.60.0",
-    "sharp": "^0.34.5"
+    "playwright": "^1.62.0",
+    "sharp": "^0.35.3"
   },
   "peerDependenciesMeta": {
     "playwright": {

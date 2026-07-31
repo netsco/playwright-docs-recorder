@@ -25,15 +25,15 @@
     "prepare": "husky || true"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.0",
+    "@changesets/cli": "^2.31.1",
     "@eslint/js": "^10.0.1",
-    "@vitest/coverage-v8": "^4.1.7",
-    "eslint": "^10.4.0",
-    "globals": "^17.6.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.0",
+    "globals": "^17.8.0",
     "husky": "^9.1.7",
-    "jsdom": "^29.1.1",
-    "lint-staged": "^17.0.5",
-    "memfs": "^4.57.3",
+    "jsdom": "^30.0.0",
+    "lint-staged": "^17.2.0",
+    "memfs": "^4.64.0",
     "vitest": "^4.0.18"
   },
   "lint-staged": {
@@ -43,7 +43,7 @@
     ]
   },
   "dependencies": {
-    "electron": "^42.3.0"
+    "electron": "^43.2.0"
   },
   "overrides": {
     "vite": "^8.0.14"
