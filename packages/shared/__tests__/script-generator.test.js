@@ -45,7 +45,7 @@ describe('generateScript', () => {
         ...baseRecording,
         actions: [{ type: 'goto', url: 'https://example.com' }]
       });
-      expect(script).toContain("await page.goto('https://example.com')");
+      expect(script).toContain('await page.goto("https://example.com")');
     });
 
     it('handles URLs with special characters', () => {
@@ -53,7 +53,7 @@ describe('generateScript', () => {
         ...baseRecording,
         actions: [{ type: 'goto', url: 'https://example.com/path?q=test&a=1' }]
       });
-      expect(script).toContain("await page.goto('https://example.com/path?q=test&a=1')");
+      expect(script).toContain('await page.goto("https://example.com/path?q=test&a=1")');
     });
   });
 
@@ -63,7 +63,7 @@ describe('generateScript', () => {
         ...baseRecording,
         actions: [{ type: 'click', selector: '#submit-btn' }]
       });
-      expect(script).toContain("await page.locator('#submit-btn').click()");
+      expect(script).toContain('await page.locator("#submit-btn").click()');
     });
 
     it('handles complex selectors', () => {
@@ -71,7 +71,7 @@ describe('generateScript', () => {
         ...baseRecording,
         actions: [{ type: 'click', selector: '[data-testid="login-button"]' }]
       });
-      expect(script).toContain('await page.locator(\'[data-testid="login-button"]\').click()');
+      expect(script).toContain('await page.locator("[data-testid=\\"login-button\\"]").click()');
     });
   });
 
@@ -81,7 +81,7 @@ describe('generateScript', () => {
         ...baseRecording,
         actions: [{ type: 'fill', selector: '#username', value: 'testuser' }]
       });
-      expect(script).toContain("await page.locator('#username').fill('testuser')");
+      expect(script).toContain('await page.locator("#username").fill("testuser")');
     });
   });
 
@@ -95,12 +95,12 @@ describe('generateScript', () => {
       expect(script).toContain('This is a test note');
     });
 
-    it('escapes backticks in notes', () => {
+    it('preserves backticks in notes', () => {
       const script = generateScript({
         ...baseRecording,
         actions: [{ type: 'note', note: 'Code: `const x = 1`' }]
       });
-      expect(script).toContain('\\`');
+      expect(script).toContain('console.log("Code: `const x = 1`")');
     });
 
     it('escapes backslashes in notes', () => {
@@ -129,7 +129,7 @@ describe('generateScript', () => {
         actions: [{ type: 'screenshot', filename: 'test.png', highlight: '#btn' }],
         screenshots: [{ filename: 'test.png' }]
       });
-      expect(script).toContain("await highlight(page, '#btn')");
+      expect(script).toContain('await highlight(page, "#btn")');
     });
 
     it('logs note with screenshot', () => {

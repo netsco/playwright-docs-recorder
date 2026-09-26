@@ -39,23 +39,22 @@ function generateScript(recording) {
   for (const action of actions) {
     switch (action.type) {
       case 'goto':
-        lines.push(`  await page.goto('${action.url}');`);
+        lines.push(`  await page.goto(${JSON.stringify(action.url)});`);
         break;
       case 'click':
-        lines.push(`  await page.locator('${action.selector}').click();`);
+        lines.push(`  await page.locator(${JSON.stringify(action.selector)}).click();`);
         break;
       case 'fill':
-        lines.push(`  await page.locator('${action.selector}').fill('${action.value}');`);
+        lines.push(`  await page.locator(${JSON.stringify(action.selector)}).fill(${JSON.stringify(action.value)});`);
         break;
       case 'hover':
-        lines.push(`  await page.locator('${action.selector}').hover();`);
+        lines.push(`  await page.locator(${JSON.stringify(action.selector)}).hover();`);
         break;
       case 'note':
         // Standalone note - just log it
         if (action.note) {
-          const escapedNote = action.note.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
           lines.push('  console.log(\'\\n📝 Note:\');');
-          lines.push(`  console.log(\`${escapedNote}\`);`);
+          lines.push(`  console.log(${JSON.stringify(action.note)});`);
         }
         break;
       case 'scroll':
@@ -63,14 +62,13 @@ function generateScript(recording) {
         break;
       case 'screenshot':
         if (action.note) {
-          const escapedNote = action.note.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
-          lines.push(`  console.log('\\n📸 ${action.filename}');`);
-          lines.push(`  console.log(\`${escapedNote}\`);`);
+          lines.push(`  console.log(${JSON.stringify('\n📸 ' + action.filename)});`);
+          lines.push(`  console.log(${JSON.stringify(action.note)});`);
         }
         if (action.highlight) {
-          lines.push(`  await highlight(page, '${action.highlight}');`);
+          lines.push(`  await highlight(page, ${JSON.stringify(action.highlight)});`);
         }
-        lines.push(`  await page.screenshot({ path: path.join(__dirname, 'screenshots', '${action.filename}') });`);
+        lines.push(`  await page.screenshot({ path: path.join(__dirname, 'screenshots', ${JSON.stringify(action.filename)}) });`);
         break;
     }
   }
@@ -88,8 +86,8 @@ function generateScript(recording) {
   lines.push('    mdLines.push(`![${s.filename}](screenshots/${s.filename})`, "");');
   lines.push('    if (separator) { mdLines.push(separator, ""); }');
   lines.push('  }');
-  lines.push(`  fs.writeFileSync(path.join(__dirname, "${mdFilename}"), mdLines.join("\\n"));`);
-  lines.push(`  console.log("\\n✅ Generated ${mdFilename}");`);
+  lines.push(`  fs.writeFileSync(path.join(__dirname, ${JSON.stringify(mdFilename)}), mdLines.join("\\n"));`);
+  lines.push(`  console.log(${JSON.stringify('\n✅ Generated ' + mdFilename)});`);
 
   lines.push('', '  await browser.close();', '})();');
   return lines.join('\n');
