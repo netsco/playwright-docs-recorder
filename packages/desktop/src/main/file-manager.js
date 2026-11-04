@@ -1,8 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { generateScript } = require('../shared/script-generator');
-const { generateMarkdown } = require('../shared/markdown-generator');
-const { slugify } = require('@doc-recorder/shared');
+const { generateScript, generateMarkdown, slugify } = require('@doc-recorder/shared');
 const { getProjectFolderPath } = require('./project-manager');
 
 /**
@@ -64,7 +62,7 @@ function saveRecording(outputDir, recording, project = null) {
 
   // Generate and save Playwright script
   const scriptPath = path.join(recordingDir, 'recorded-script.js');
-  fs.writeFileSync(scriptPath, generateScript(recording));
+  fs.writeFileSync(scriptPath, generateScript({ ...recording, mdFilename }));
 
   // Generate and save markdown
   const markdownPath = path.join(recordingDir, mdFilename);
@@ -305,6 +303,8 @@ function updateRecordingActions(outputDir, recordingId, newActions, project = nu
     // Save updated actions.json
     fs.writeFileSync(actionsPath, JSON.stringify(actionsData, null, 2));
 
+    const mdFilename = actionsData.mdFilename || 'screenshots.md';
+
     // Regenerate Playwright script
     const scriptPath = path.join(recordingDir, 'recorded-script.js');
     fs.writeFileSync(scriptPath, generateScript({
@@ -312,10 +312,11 @@ function updateRecordingActions(outputDir, recordingId, newActions, project = nu
       viewport: actionsData.viewport,
       actions: newActions,
       screenshots: newActions.filter(a => a.type === 'screenshot'),
+      separator: actionsData.separator,
+      mdFilename,
     }));
 
     // Regenerate markdown
-    const mdFilename = actionsData.mdFilename || 'screenshots.md';
     const markdownPath = path.join(recordingDir, mdFilename);
     fs.writeFileSync(markdownPath, generateMarkdown({
       title: actionsData.title,
