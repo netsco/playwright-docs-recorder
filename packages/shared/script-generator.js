@@ -45,7 +45,7 @@ function generateScript(recording) {
         lines.push(`  await page.locator(${JSON.stringify(action.selector)}).click();`);
         break;
       case 'fill':
-        lines.push(`  await page.locator(${JSON.stringify(action.selector)}).fill(${JSON.stringify(action.value)});`);
+        lines.push(`  await page.locator(${JSON.stringify(action.selector)}).fill(${JSON.stringify(action.value ?? '')});`);
         break;
       case 'hover':
         lines.push(`  await page.locator(${JSON.stringify(action.selector)}).hover();`);

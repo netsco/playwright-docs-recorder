@@ -83,6 +83,14 @@ describe('generateScript', () => {
       });
       expect(script).toContain('await page.locator("#username").fill("testuser")');
     });
+
+    it('fills an empty string when no value was recorded', () => {
+      const script = generateScript({
+        ...baseRecording,
+        actions: [{ type: 'fill', selector: '#username' }]
+      });
+      expect(script).toContain('await page.locator("#username").fill("")');
+    });
   });
 
   describe('note action', () => {
