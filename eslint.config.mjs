@@ -50,7 +50,7 @@ export default [
   {
     ignores: [
       'node_modules/',
-      'dist/',
+      '**/dist/',
       'coverage/',
       'packages/desktop/src/renderer/styles/output.css',
     ],
