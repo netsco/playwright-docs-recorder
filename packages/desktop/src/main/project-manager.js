@@ -608,16 +608,27 @@ function importProjectFromZip(outputDir, zipPath) {
     folderName = `${baseFolderName}-${counter}`;
   }
 
-  const projectFolder = path.join(outputDir, folderName);
+  const projectFolder = path.resolve(outputDir, folderName);
+
+  // Resolve every destination up front and reject entries that would escape
+  // the project folder (zip-slip), before anything is written to disk.
+  const extractions = [];
+  for (const entry of entries) {
+    if (entry.entryName === '__project-manifest.json') continue;
+    const destPath = path.resolve(projectFolder, entry.entryName);
+    if (destPath !== projectFolder && !destPath.startsWith(projectFolder + path.sep)) {
+      throw new Error(`Invalid project archive: unsafe entry path "${entry.entryName}"`);
+    }
+    extractions.push({ entry, destPath });
+  }
+
   fs.mkdirSync(projectFolder, { recursive: true });
 
   // Extract all files except manifest
-  for (const entry of entries) {
-    if (entry.entryName === '__project-manifest.json') continue;
+  for (const { entry, destPath } of extractions) {
     if (entry.isDirectory) {
-      fs.mkdirSync(path.join(projectFolder, entry.entryName), { recursive: true });
+      fs.mkdirSync(destPath, { recursive: true });
     } else {
-      const destPath = path.join(projectFolder, entry.entryName);
       fs.mkdirSync(path.dirname(destPath), { recursive: true });
       fs.writeFileSync(destPath, entry.getData());
     }
